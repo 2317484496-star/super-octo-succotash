@@ -1,0 +1,3278 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Y-v04 图像拼接工作台</title>
+  <style>
+    :root{
+      --bg0:#07101d;
+      --bg1:#0d1728;
+      --bg2:#13233a;
+      --panel:rgba(14,22,34,.82);
+      --panel-2:rgba(22,32,48,.84);
+      --line:rgba(255,255,255,.09);
+      --line-2:rgba(255,255,255,.15);
+      --text:#ecf3ff;
+      --muted:#9fb0c7;
+      --muted-2:#7585a1;
+      --accent:#63d3ff;
+      --accent-2:#ffcb6b;
+      --good:#75f0c5;
+      --warn:#ff8f7a;
+      --shadow:0 24px 80px rgba(0,0,0,.32);
+      --radius:18px;
+      --radius-sm:12px;
+      --font: "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--font);
+      color:var(--text);
+      background:
+        radial-gradient(circle at 10% 10%, rgba(99,211,255,.14), transparent 28%),
+        radial-gradient(circle at 90% 18%, rgba(255,203,107,.16), transparent 24%),
+        radial-gradient(circle at 60% 90%, rgba(117,240,197,.11), transparent 28%),
+        linear-gradient(135deg, var(--bg0), var(--bg1) 42%, var(--bg2));
+      overflow:hidden;
+    }
+    button,input,select,textarea{font:inherit}
+    input,select,textarea{color:var(--text)}
+    select{
+      appearance:none;
+      background:rgba(8,13,22,.82);
+    }
+    select option{
+      color:var(--text);
+      background:#0d1728;
+    }
+    *{
+      scrollbar-width:thin;
+      scrollbar-color:rgba(99,211,255,.34) rgba(255,255,255,.05);
+    }
+    *::-webkit-scrollbar{
+      width:10px;
+      height:10px;
+    }
+    *::-webkit-scrollbar-track{
+      background:rgba(255,255,255,.04);
+      border-radius:999px;
+    }
+    *::-webkit-scrollbar-thumb{
+      background:linear-gradient(180deg, rgba(99,211,255,.46), rgba(117,240,197,.32));
+      border-radius:999px;
+      border:2px solid rgba(7,16,29,.82);
+    }
+    button{
+      border:0;
+      color:inherit;
+      background:none;
+      cursor:pointer;
+    }
+    .app{
+      height:100%;
+      display:grid;
+      grid-template-columns: 360px minmax(0, 1fr) 320px;
+      gap:16px;
+      padding:16px;
+    }
+    .sidebar{
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      min-height:0;
+      padding:16px;
+      border:1px solid var(--line);
+      border-radius:24px;
+      background:linear-gradient(180deg, rgba(10,16,26,.9), rgba(9,15,25,.78));
+      box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.05);
+      overflow:auto;
+      position:relative;
+      z-index:3;
+    }
+    .panel-dock{
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      min-height:0;
+    }
+    .brand{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      padding:8px 4px 12px;
+    }
+    .mark{
+      width:42px;height:42px;border-radius:14px;
+      background:
+        linear-gradient(135deg, rgba(99,211,255,.95), rgba(117,240,197,.92) 45%, rgba(255,203,107,.95));
+      box-shadow:0 12px 30px rgba(99,211,255,.25);
+      position:relative;
+    }
+    .mark::after{
+      content:"";
+      position:absolute; inset:10px;
+      border-radius:10px;
+      border:2px solid rgba(7,16,29,.65);
+      mix-blend-mode:multiply;
+    }
+    .brand h1{
+      margin:0;
+      font-size:18px;
+      line-height:1.1;
+      letter-spacing:.3px;
+    }
+    .brand p{
+      margin:6px 0 0;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .panel{
+      border:1px solid var(--line);
+      background:linear-gradient(180deg, rgba(20,29,44,.76), rgba(14,20,31,.78));
+      border-radius:20px;
+      padding:14px;
+      box-shadow:0 12px 34px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.035);
+      transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+    }
+    .panel:hover{
+      border-color:rgba(99,211,255,.18);
+      box-shadow:0 16px 40px rgba(0,0,0,.18);
+    }
+    .panel-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:12px;
+      font-size:13px;
+      color:#dfe8f7;
+      letter-spacing:.2px;
+    }
+    .panel-actions{
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+    .panel-handle{
+      cursor:grab;
+    }
+    .panel-floating{
+      position:fixed;
+      width:340px;
+      max-height:70vh;
+      overflow:auto;
+      z-index:20;
+      cursor:default;
+      box-shadow:0 26px 90px rgba(0,0,0,.38);
+      will-change:left, top;
+    }
+    .panel-floating .panel-head{
+      position:sticky;
+      top:0;
+      padding-top:2px;
+      background:linear-gradient(180deg, rgba(20,29,44,.96), rgba(20,29,44,.78));
+      z-index:2;
+    }
+    .subtle{
+      color:var(--muted-2);
+      font-size:12px;
+    }
+    .stack{display:flex;flex-direction:column;gap:10px}
+    .row{display:flex;gap:10px;align-items:center}
+    .row.wrap{flex-wrap:wrap}
+    .grow{flex:1}
+    .segmented{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      padding:4px;
+      border-radius:16px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.07);
+    }
+    .segmented button{
+      padding:10px 12px;
+      border-radius:12px;
+      color:var(--muted);
+      background:transparent;
+      transition:transform .15s ease, background .15s ease, color .15s ease;
+    }
+    .segmented button.active{
+      background:linear-gradient(135deg, rgba(99,211,255,.2), rgba(117,240,197,.18));
+      color:var(--text);
+      box-shadow:inset 0 0 0 1px rgba(99,211,255,.18);
+    }
+    .segmented button:active{transform:scale(.98)}
+    .btn{
+      width:100%;
+      border-radius:14px;
+      padding:11px 13px;
+      background:linear-gradient(135deg, rgba(99,211,255,.16), rgba(117,240,197,.12));
+      border:1px solid rgba(99,211,255,.22);
+      color:var(--text);
+      font-weight:600;
+      transition:transform .15s ease, border-color .15s ease, filter .15s ease;
+    }
+    .btn:hover{filter:brightness(1.05)}
+    .btn:active{transform:translateY(1px)}
+    .btn.secondary{
+      background:rgba(255,255,255,.04);
+      border-color:rgba(255,255,255,.09);
+      color:#edf3ff;
+      font-weight:500;
+    }
+    .btn.warn{
+      background:linear-gradient(135deg, rgba(255,143,122,.18), rgba(255,143,122,.08));
+      border-color:rgba(255,143,122,.24);
+    }
+    .toolbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:10px 16px;
+      margin:0 2px 12px;
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:rgba(10,15,24,.56);
+      box-shadow:0 10px 50px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.05);
+      position:relative;
+    }
+    .toolbar .title{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+    .toolbar strong{font-size:14px}
+    .toolbar span{font-size:12px;color:var(--muted)}
+    .toolbar .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:8px 10px;
+      border-radius:999px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.07);
+      color:var(--muted);
+      font-size:12px;
+    }
+    .chip strong{color:var(--text);font-weight:600}
+    button.chip:hover{
+      border-color:rgba(99,211,255,.28);
+      color:var(--text);
+    }
+    .workspace{
+      min-width:0;
+      min-height:0;
+      display:flex;
+      flex-direction:column;
+      position:relative;
+    }
+    .stage-shell{
+      position:relative;
+      flex:1;
+      min-height:0;
+      border-radius:28px;
+      border:1px solid rgba(255,255,255,.08);
+      background:
+        radial-gradient(circle at 20% 20%, rgba(99,211,255,.06), transparent 20%),
+        radial-gradient(circle at 80% 12%, rgba(255,203,107,.05), transparent 18%),
+        linear-gradient(180deg, rgba(8,13,22,.72), rgba(9,15,25,.9));
+      box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.04);
+      overflow:hidden;
+    }
+    .asset-side{
+      height:100%;
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+      overflow:hidden;
+    }
+    .asset-side .stack{
+      min-height:0;
+      flex:1;
+    }
+    .asset-side .asset-tray{
+      min-height:0;
+      flex:1;
+      overflow:auto;
+      padding-right:4px;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      align-content:start;
+    }
+    .shortcut-float{
+      position:absolute;
+      top:52px;
+      right:0;
+      width:320px;
+      max-height:56vh;
+      overflow:auto;
+      z-index:12;
+      padding:10px;
+      box-shadow:0 18px 50px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05);
+      transform-origin:top right;
+      transition:opacity .16s ease, transform .16s ease;
+    }
+    .shortcut-float.collapsed{
+      opacity:0;
+      transform:translateY(-8px) scale(.96);
+      pointer-events:none;
+    }
+    .shortcut-float .panel-head .shortcut-toggle{
+      display:none;
+    }
+    .shortcut-toggle{
+      width:30px;
+      height:30px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.1);
+      background:rgba(255,255,255,.05);
+      color:var(--text);
+    }
+    .viewport{
+      position:absolute;
+      inset:0;
+      overflow:hidden;
+      touch-action:none;
+      cursor:default;
+    }
+    .grid{
+      position:absolute;
+      inset:-1000px;
+      background-image:
+        linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size:40px 40px;
+      opacity:.65;
+      transform-origin:0 0;
+      pointer-events:none;
+    }
+    .world{
+      position:absolute;
+      inset:0;
+      transform-origin:0 0;
+      pointer-events:none;
+      --ui-scale:1;
+    }
+    .board, .free-item, .slot{
+      position:absolute;
+      pointer-events:auto;
+      user-select:none;
+    }
+    .board{
+      border-radius:22px;
+      border:2px solid rgba(99,211,255,.7);
+      background:
+        linear-gradient(135deg, rgba(99,211,255,.06), rgba(117,240,197,.04)),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.03) 0 10px, rgba(255,255,255,.015) 10px 20px);
+      box-shadow:0 28px 80px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.05);
+      overflow:hidden;
+    }
+    .board.free{
+      border-style:dashed;
+      border-color:rgba(99,211,255,.75);
+    }
+    .board.workflow{
+      border-color:rgba(117,240,197,.72);
+      background:
+        linear-gradient(135deg, rgba(117,240,197,.05), rgba(99,211,255,.03)),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.03) 0 10px, rgba(255,255,255,.015) 10px 20px);
+    }
+    .board-label{
+      position:absolute;
+      top:12px;
+      left:12px;
+      padding:7px 10px;
+      border-radius:999px;
+      background:rgba(0,0,0,.38);
+      color:#fff;
+      font-size:12px;
+      letter-spacing:.2px;
+      z-index:5;
+    }
+    .free-item{
+      border-radius:18px;
+      overflow:hidden;
+      background:rgba(255,255,255,.03);
+      box-shadow:0 18px 40px rgba(0,0,0,.18);
+    }
+    .free-item img,
+    .slot .asset{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+      pointer-events:none;
+    }
+    .free-item .caption{
+      position:absolute;
+      left:10px;
+      right:10px;
+      bottom:10px;
+      padding:6px 8px;
+      border-radius:999px;
+      background:rgba(0,0,0,.35);
+      color:#fff;
+      font-size:11px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .slot{
+      border-radius:18px;
+      overflow:hidden;
+      border:2px solid rgba(117,240,197,.72);
+      background:rgba(255,255,255,.03);
+    }
+    .slot.empty::before{
+      content:"拖入图片";
+      position:absolute;
+      inset:auto 10px 10px 10px;
+      padding:6px 8px;
+      border-radius:999px;
+      background:rgba(0,0,0,.34);
+      color:rgba(255,255,255,.85);
+      font-size:11px;
+      text-align:center;
+    }
+    .slot .badge{
+      position:absolute;
+      top:10px;
+      left:10px;
+      z-index:3;
+      padding:6px 8px;
+      border-radius:999px;
+      background:rgba(0,0,0,.35);
+      color:#fff;
+      font-size:11px;
+    }
+    .selected{
+      box-shadow:0 0 0 2px rgba(255,203,107,.95), 0 0 0 8px rgba(255,203,107,.12);
+    }
+    .free-item.selected,
+    .slot.selected,
+    .board.selected{
+      overflow:visible;
+    }
+    .handles{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      z-index:6;
+    }
+    .handle{
+      position:absolute;
+      width:calc(18px * var(--ui-scale));
+      height:calc(18px * var(--ui-scale));
+      margin-left:calc(-9px * var(--ui-scale));
+      margin-top:calc(-9px * var(--ui-scale));
+      border-radius:999px;
+      background:linear-gradient(180deg, #fff, #cbe9ff);
+      border:1px solid rgba(4,10,16,.7);
+      box-shadow:0 4px 12px rgba(0,0,0,.28);
+      pointer-events:auto;
+      cursor:pointer;
+    }
+    .handle.nw{left:0;top:0;cursor:nwse-resize}
+    .handle.ne{right:0;top:0;left:auto;cursor:nesw-resize}
+    .handle.sw{left:0;bottom:0;top:auto;cursor:nesw-resize}
+    .handle.se{right:0;bottom:0;left:auto;top:auto;cursor:nwse-resize}
+    .handle.n{left:50%;top:0;cursor:ns-resize}
+    .handle.s{left:50%;bottom:0;top:auto;cursor:ns-resize}
+    .handle.w{left:0;top:50%;cursor:ew-resize}
+    .handle.e{right:0;left:auto;top:50%;cursor:ew-resize}
+    .handle.mid{
+      width:calc(20px * var(--ui-scale));
+      height:calc(20px * var(--ui-scale));
+      border-radius:50%;
+      background:linear-gradient(180deg, #ffd98a, #ffb53a);
+      border-color:rgba(0,0,0,.55);
+    }
+    .handle.move{
+      left:50%;
+      top:50%;
+      cursor:grab;
+    }
+    .frame-inside{
+      position:absolute;
+      inset:0;
+      overflow:hidden;
+    }
+    .frame-inside img{
+      position:absolute;
+      inset:auto;
+      display:block;
+      pointer-events:none;
+      user-select:none;
+      max-width:none;
+    }
+    .asset-tray{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+    }
+    .asset-card{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      padding:8px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.07);
+      background:rgba(255,255,255,.04);
+      cursor:grab;
+      position:relative;
+      transition:transform .14s ease, border-color .14s ease, background .14s ease;
+    }
+    .asset-card:hover{
+      transform:translateY(-1px);
+      border-color:rgba(99,211,255,.18);
+      background:rgba(255,255,255,.055);
+    }
+    .asset-card:active{cursor:grabbing}
+    .asset-remove{
+      position:absolute;
+      top:8px;
+      right:8px;
+      width:26px;
+      height:26px;
+      border-radius:999px;
+      display:grid;
+      place-items:center;
+      background:rgba(7,16,29,.84);
+      border:1px solid rgba(255,255,255,.12);
+      color:#fff;
+      font-size:15px;
+      line-height:1;
+      z-index:2;
+    }
+    .asset-remove:hover{
+      border-color:rgba(255,143,122,.45);
+      color:#ffd3c8;
+    }
+    .asset-thumb{
+      position:relative;
+      width:100%;
+      aspect-ratio:1/1;
+      border-radius:12px;
+      overflow:hidden;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.02)),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.08) 0 10px, rgba(255,255,255,.02) 10px 20px);
+    }
+    .asset-thumb img{
+      width:100%;height:100%;object-fit:cover;display:block;
+    }
+    .asset-meta{
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+      min-width:0;
+    }
+    .asset-meta strong{
+      font-size:12px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .asset-meta span{
+      font-size:11px;
+      color:var(--muted);
+    }
+    .asset-drop-hint{
+      grid-column:1/-1;
+      display:none;
+      padding:12px;
+      border-radius:14px;
+      border:1px dashed rgba(99,211,255,.34);
+      background:rgba(99,211,255,.08);
+      color:var(--text);
+      text-align:center;
+      font-size:12px;
+    }
+    .asset-side.drag-over .asset-drop-hint{
+      display:block;
+    }
+    .control{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .control label{
+      font-size:12px;
+      color:var(--muted);
+    }
+    .control input[type="number"],
+    .control input[type="text"],
+    .control select{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.1);
+      background:rgba(255,255,255,.05);
+      color:var(--text);
+      outline:none;
+    }
+    .control select option{
+      color:#eaf2ff;
+      background:#122136;
+    }
+    .control input[type="range"]{width:100%}
+    .mini{
+      padding:8px 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.09);
+      background:rgba(255,255,255,.04);
+      color:var(--muted);
+      font-size:12px;
+    }
+    .mini.active{
+      color:var(--text);
+      border-color:rgba(99,211,255,.28);
+      background:rgba(99,211,255,.12);
+    }
+    .hint{
+      color:var(--muted-2);
+      font-size:12px;
+      line-height:1.55;
+      margin-top:auto;
+      padding:0 6px 2px;
+    }
+    .list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .list-item{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:9px 10px;
+      border-radius:12px;
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.06);
+    }
+    .list-item .name{
+      min-width:0;
+      font-size:12px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .list-item .right{
+      display:flex;
+      gap:6px;
+      flex-shrink:0;
+    }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:5px 9px;
+      border-radius:999px;
+      font-size:11px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.07);
+      color:var(--muted);
+    }
+    .tag strong{color:var(--text);font-weight:600}
+    .hidden{display:none !important}
+    .locked{
+      opacity:.92;
+    }
+    .locked::after{
+      content:"已锁定";
+      position:absolute;
+      right:10px;
+      top:10px;
+      padding:5px 8px;
+      font-size:11px;
+      border-radius:999px;
+      background:rgba(8,13,22,.72);
+      border:1px solid rgba(255,255,255,.12);
+      color:#fff4c8;
+      z-index:7;
+    }
+    .floating-layer{
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      z-index:15;
+    }
+    .floating-layer .panel-floating{
+      pointer-events:auto;
+    }
+    .divider{
+      height:1px;
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,.09), transparent);
+      margin:4px 0;
+    }
+    .danger-text{color:#ffae9e}
+    .footer-note{
+      font-size:11px;
+      color:var(--muted-2);
+      line-height:1.5;
+    }
+    .help-card{
+      position:absolute;
+      top:16px;
+      right:16px;
+      width:min(360px, calc(100% - 32px));
+      padding:14px;
+      border-radius:20px;
+      background:linear-gradient(180deg, rgba(11,18,29,.92), rgba(10,16,26,.84));
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:0 18px 60px rgba(0,0,0,.26);
+      z-index:5;
+      pointer-events:auto;
+    }
+    .help-card h2{
+      margin:0 0 10px;
+      font-size:14px;
+      letter-spacing:.2px;
+    }
+    .help-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .help-head h2{
+      margin:0;
+    }
+    .help-toggle{
+      width:30px;
+      height:30px;
+      display:grid;
+      place-items:center;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.1);
+      background:rgba(255,255,255,.05);
+      color:var(--text);
+      font-size:14px;
+    }
+    .help-card.collapsed .help-list{
+      display:none;
+    }
+    .help-card.collapsed{
+      width:auto;
+      min-width:132px;
+    }
+    .help-list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+    }
+    .help-list strong{
+      color:var(--text);
+      font-weight:600;
+    }
+    @media (max-width: 1100px){
+      body{overflow:auto}
+      .app{grid-template-columns:1fr; height:auto; min-height:100%}
+      .workspace{min-height:72vh}
+      .sidebar{max-height:none}
+      .help-card{
+        position:static;
+        width:auto;
+        margin:16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark"></div>
+        <div>
+          <h1>Y-v04 图像拼接工作台</h1>
+          <p>无限画布 + 固定工作流 · 浮动面板 · PNG 无损导出</p>
+        </div>
+      </div>
+      <div class="panel-dock" id="panelDock">
+      <section class="panel" id="modePanel">
+        <div class="panel-head">
+          <span>模式</span>
+          <span class="subtle" id="modeLabel">无限画布</span>
+        </div>
+        <div class="segmented" id="modeToggle">
+          <button class="active" data-mode="free" type="button">无限画布</button>
+          <button data-mode="workflow" type="button">固定流程</button>
+        </div>
+      </section>
+
+      <section class="panel" id="assetPanel">
+        <div class="panel-head">
+          <span>素材</span>
+          <span class="subtle" id="assetCount">0 张</span>
+        </div>
+        <div class="stack">
+          <button class="btn" id="uploadBtn" type="button">上传多张图片</button>
+          <input id="fileInput" type="file" accept="image/*" multiple hidden />
+          <div class="asset-tray" id="assetTray"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="freePanel">
+        <div class="panel-head">
+          <span>无限画布设置</span>
+          <span class="subtle">自由拖拽</span>
+        </div>
+        <div class="stack">
+          <div class="row">
+            <div class="control grow">
+              <label>导出框 X</label>
+              <input type="number" step="1" id="boardX" />
+            </div>
+            <div class="control grow">
+              <label>导出框 Y</label>
+              <input type="number" step="1" id="boardY" />
+            </div>
+          </div>
+          <div class="row">
+            <div class="control grow">
+              <label>画幅比例</label>
+              <select id="boardRatio">
+                <option value="16:9">16:9</option>
+                <option value="4:3">4:3</option>
+                <option value="3:4">3:4</option>
+                <option value="9:16">9:16</option>
+                <option value="1:1">1:1</option>
+                <option value="2:1">2:1</option>
+                <option value="1.85:1">1.85:1</option>
+              </select>
+            </div>
+            <div class="control grow">
+              <label>方向</label>
+              <select id="boardOrientation">
+                <option value="landscape">横屏</option>
+                <option value="portrait">竖屏</option>
+              </select>
+            </div>
+          </div>
+          <div class="control">
+            <label>画布尺寸等级</label>
+            <input type="range" min="10" max="800" step="10" id="boardScale" />
+          </div>
+          <div class="row wrap">
+            <button class="mini active" id="snapGridBtn" type="button">网格吸附</button>
+            <button class="mini" id="fitBoardBtn" type="button">适配视图</button>
+            <button class="mini" id="centerBoardBtn" type="button">居中导出框</button>
+            <button class="mini" id="lockBoardBtn" type="button">锁定导出框</button>
+          </div>
+          <div class="control">
+            <label>网格尺寸</label>
+            <input type="range" min="4" max="120" step="1" id="gridSize" />
+          </div>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="workflowPanel">
+        <div class="panel-head">
+          <span>固定流程</span>
+          <span class="subtle">模板化拼接</span>
+        </div>
+        <div class="stack">
+          <div class="control">
+            <label>模板</label>
+            <select id="templateSelect">
+              <option value="blank">空白板</option>
+              <option value="single">单框</option>
+              <option value="two-col">双列</option>
+              <option value="two-two" selected>四宫格</option>
+              <option value="three-col">三列</option>
+              <option value="poster">海报拼版</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>画布宽度</label>
+            <input type="number" id="workflowW" step="1" readonly />
+          </div>
+          <div class="control">
+            <label>画布高度</label>
+            <input type="number" id="workflowH" step="1" readonly />
+          </div>
+          <div class="row wrap">
+            <button class="mini active" id="autoFillBtn" type="button">自动填充</button>
+            <button class="mini" id="shuffleBtn" type="button">重新排布</button>
+            <button class="mini" id="alignAllBtn" type="button">全部归位</button>
+            <button class="mini" id="addSlotBtn" type="button">新增框架</button>
+            <button class="mini" id="removeSlotBtn" type="button">删除选中框架</button>
+          </div>
+          <div class="footer-note">
+            模板会生成可编辑框架，你可以继续拖动、缩放，最后按当前框架拼接导出。
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="selectedPanel">
+        <div class="panel-head">
+          <span>选中对象</span>
+          <span class="subtle" id="selectedType">无</span>
+        </div>
+        <div class="stack" id="inspector"></div>
+      </section>
+
+      <section class="panel" id="shortcutPanelSection">
+        <div class="panel-head">
+          <span>快捷键</span>
+          <span class="subtle">可自定义</span>
+        </div>
+        <div class="stack" id="shortcutPanel"></div>
+      </section>
+
+      <section class="panel" id="exportPanel">
+        <div class="panel-head">
+          <span>导出</span>
+          <span class="subtle">PNG 无损</span>
+        </div>
+        <div class="stack">
+          <div class="row wrap" id="qualityGroup">
+            <button class="mini active" data-quality="2k" type="button">2K</button>
+            <button class="mini" data-quality="4k" type="button">4K</button>
+            <button class="mini" data-quality="8k" type="button">8K</button>
+          </div>
+          <div class="control">
+            <label>导出背景</label>
+            <div class="row">
+              <input type="color" id="exportBg" value="#ffffff" style="width:52px;height:42px;padding:4px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)" />
+              <button class="mini" id="transparentBtn" type="button">透明背景</button>
+            </div>
+          </div>
+          <button class="btn" id="exportBtn" type="button">导出拼接图</button>
+          <div class="row">
+            <button class="btn secondary" id="fitAllBtn" type="button">适配当前画面</button>
+            <button class="btn warn" id="clearBtn" type="button">清空场景</button>
+          </div>
+          <button class="btn secondary" id="restoreBtn" type="button">恢复场景</button>
+        </div>
+      </section>
+
+      <div class="hint">
+        操作提示：拖动画布空白处平移视图，滚轮缩放；拖动图片移动，角点缩放。导出 PNG 会保留图像像素，不做二次压缩。
+      </div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <div class="toolbar">
+        <div class="title">
+          <strong id="workspaceTitle">无限画布</strong>
+          <span id="workspaceSubtitle">把图片放到导出框里，自由排布后一次性导出。</span>
+        </div>
+        <div class="chips">
+          <button class="chip" id="shortcutTopToggle" type="button" title="快捷键设置">快捷键 <strong>⌘</strong></button>
+          <div class="chip">缩放 <strong id="zoomLabel">100%</strong></div>
+          <div class="chip">素材 <strong id="chipsAssets">0</strong></div>
+          <div class="chip">框架 <strong id="chipsBoard">1</strong></div>
+        </div>
+      </div>
+      <div class="stage-shell">
+        <aside class="help-card collapsed" id="helpCard">
+          <div class="help-head">
+            <h2>操作介绍</h2>
+            <button class="help-toggle" id="helpToggle" type="button" aria-expanded="false" title="展开操作介绍">?</button>
+          </div>
+          <div class="help-list">
+            <div><strong>上传多张图片</strong>：把素材加入左侧素材栏，支持继续拖入画布或分配到固定框架。</div>
+            <div><strong>拖到画布 / 框架</strong>：素材可直接拖进无限画布，或拖到固定流程里的任意框架中。</div>
+            <div><strong>适配视图</strong>：让当前画面快速回到舒服的观察范围。</div>
+            <div><strong>居中导出框</strong>：把导出区域放到当前视窗中心，方便继续排版。</div>
+            <div><strong>图片裁切</strong>：选中图片后开启裁切，可调整裁切缩放与水平/垂直偏移。</div>
+            <div><strong>锁定导出框</strong>：锁住导出框，避免误移动和误缩放。</div>
+            <div><strong>自动填充 / 重新排布 / 全部归位</strong>：快速铺满模板、打乱顺序、重置框内图片位置。</div>
+            <div><strong>新增框架 / 删除选中框架</strong>：固定流程下可自由 DIY 布局，也提供空白板起步。</div>
+            <div><strong>快捷键</strong>：Ctrl/Cmd + C 复制，Ctrl/Cmd + V 粘贴，Ctrl/Cmd + Z 撤回，F 定位选中对象。</div>
+          </div>
+        </aside>
+        <div class="viewport" id="viewport">
+          <div class="grid" id="grid"></div>
+          <div class="world" id="world"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div class="floating-layer" id="floatingLayer"></div>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+    const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+    const uid = (prefix) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;
+    const round = (n) => Math.round(n);
+
+    const EXPORT_PRESETS = {
+      '2k': { label: '2K', longEdge: 2048 },
+      '4k': { label: '4K', longEdge: 4096 },
+      '8k': { label: '8K', longEdge: 8192 }
+    };
+
+    const ASPECT_PRESETS = {
+      '16:9': 16 / 9,
+      '4:3': 4 / 3,
+      '3:4': 3 / 4,
+      '9:16': 9 / 16,
+      '1:1': 1,
+      '2:1': 2,
+      '1.85:1': 1.85
+    };
+
+    const DEFAULT_SHORTCUTS = {
+      align: 'KeyA',
+      lock: 'KeyL',
+      focus: 'KeyF',
+      export: 'CtrlOrMeta+Enter',
+      clear: 'Delete',
+      undo: 'CtrlOrMeta+KeyZ',
+      redo: 'CtrlOrMeta+Shift+KeyZ',
+      duplicate: 'CtrlOrMeta+KeyD',
+      copy: 'CtrlOrMeta+KeyC',
+      paste: 'CtrlOrMeta+KeyV'
+    };
+
+    const TEMPLATE_BUILDERS = {
+      single: (w, h) => ([{ id: uid('slot'), x: 0, y: 0, w, h, assetId: null, scale: 100, ox: 0, oy: 0, locked: false }]),
+      blank: () => ([]),
+      'two-col': (w, h) => {
+        const g = Math.round(Math.min(w, h) * 0.035);
+        const ww = (w - g) / 2;
+        return [
+          { id: uid('slot'), x: 0, y: 0, w: ww, h, assetId: null, scale: 100, ox: 0, oy: 0, locked: false },
+          { id: uid('slot'), x: ww + g, y: 0, w: ww, h, assetId: null, scale: 100, ox: 0, oy: 0, locked: false }
+        ];
+      },
+      'two-two': (w, h) => {
+        const g = Math.round(Math.min(w, h) * 0.035);
+        const ww = (w - g) / 2;
+        const hh = (h - g) / 2;
+        return [
+          { id: uid('slot'), x: 0, y: 0, w: ww, h: hh, assetId: null, scale: 100, ox: 0, oy: 0, locked: false },
+          { id: uid('slot'), x: ww + g, y: 0, w: ww, h: hh, assetId: null, scale: 100, ox: 0, oy: 0, locked: false },
+          { id: uid('slot'), x: 0, y: hh + g, w: ww, h: hh, assetId: null, scale: 100, ox: 0, oy: 0, locked: false },
+          { id: uid('slot'), x: ww + g, y: hh + g, w: ww, h: hh, assetId: null, scale: 100, ox: 0, oy: 0, locked: false }
+        ];
+      },
+      'three-col': (w, h) => {
+        const g = Math.round(Math.min(w, h) * 0.03);
+        const ww = (w - g * 2) / 3;
+        return [
+          { id: uid('slot'), x: 0, y: 0, w: ww, h, assetId: null, scale: 100, ox: 0, oy: 0, locked: false },
+          { id: uid('slot'), x: ww + g, y: 0, w: ww, h, assetId: null, scale: 100, ox: 0, oy: 0, locked: false },
+          { id: uid('slot'), x: (ww + g) * 2, y: 0, w: ww, h, assetId: null, scale: 100, ox: 0, oy: 0, locked: false }
+        ];
+      },
+      poster: (w, h) => {
+        const g = Math.round(Math.min(w, h) * 0.03);
+        const top = Math.round(h * 0.58);
+        return [
+          { id: uid('slot'), x: 0, y: 0, w, h: top, assetId: null, scale: 100, ox: 0, oy: 0, locked: false },
+          { id: uid('slot'), x: 0, y: top + g, w: Math.round(w * 0.64), h: h - top - g, assetId: null, scale: 100, ox: 0, oy: 0, locked: false },
+          { id: uid('slot'), x: Math.round(w * 0.64) + g, y: top + g, w: w - Math.round(w * 0.64) - g, h: h - top - g, assetId: null, scale: 100, ox: 0, oy: 0, locked: false }
+        ];
+      }
+    };
+
+    const state = {
+      mode: 'free',
+      exportQuality: '2k',
+      transparentExport: false,
+      assets: [],
+      freeItems: [],
+      board: { x: 120, y: 100, ratio: '16:9', orientation: 'landscape', sizeScale: 100, lockedAspect: true, locked: false, w: 1240, h: 698 },
+      gridSize: 32,
+      snapGrid: true,
+      workflowTemplate: 'two-two',
+      workflowSlots: [],
+      selected: null,
+      camera: { x: 0, y: 0, zoom: 1 },
+      dragging: null,
+      lastScene: null,
+      shortcutEdit: null,
+      shortcuts: { ...DEFAULT_SHORTCUTS },
+      clipboardItem: null,
+      recentAssetDrag: 0,
+      assetDragActive: false,
+      lastAssetDrop: null,
+      assetPanelHeight: 240,
+      layoutDrag: null,
+      panelDrag: null,
+      panelPrefs: {},
+      undoStack: [],
+      redoStack: [],
+      assetTraySignature: '',
+      renderQueued: false
+    };
+
+    function safeLocalStorage(method, key, value){
+      try{
+        if(method === 'get') return localStorage.getItem(key);
+        if(method === 'set') localStorage.setItem(key, value);
+      }catch(_err){}
+      return null;
+    }
+
+    const viewport = $('#viewport');
+    const app = $('.app');
+    const workspace = $('.workspace');
+    const stageShell = $('.stage-shell');
+    const world = $('#world');
+    const grid = $('#grid');
+    const fileInput = $('#fileInput');
+    const assetTray = $('#assetTray');
+    const inspector = $('#inspector');
+    const selectedType = $('#selectedType');
+    const workspaceTitle = $('#workspaceTitle');
+    const workspaceSubtitle = $('#workspaceSubtitle');
+    const modeLabel = $('#modeLabel');
+    const zoomLabel = $('#zoomLabel');
+    const assetCount = $('#assetCount');
+    const chipsAssets = $('#chipsAssets');
+    const chipsBoard = $('#chipsBoard');
+    const shortcutPanel = $('#shortcutPanel');
+    const panelDock = $('#panelDock');
+    const floatingLayer = $('#floatingLayer');
+    const helpCard = $('#helpCard');
+    const helpToggle = $('#helpToggle');
+    const assetPanel = $('#assetPanel');
+    const exportPanel = $('#exportPanel');
+    const shortcutPanelSection = $('#shortcutPanelSection');
+    const shortcutTopToggle = $('#shortcutTopToggle');
+
+    function screenToWorld(clientX, clientY){
+      const rect = viewport.getBoundingClientRect();
+      const sx = clientX - rect.left;
+      const sy = clientY - rect.top;
+      return {
+        x: sx / state.camera.zoom - state.camera.x,
+        y: sy / state.camera.zoom - state.camera.y
+      };
+    }
+
+    function worldToScreen(worldX, worldY){
+      return {
+        x: (worldX + state.camera.x) * state.camera.zoom,
+        y: (worldY + state.camera.y) * state.camera.zoom
+      };
+    }
+
+    function getAssetById(id){
+      return state.assets.find((a) => a.id === id) || null;
+    }
+
+    function getSelectedObject(){
+      if(!state.selected) return null;
+      if(state.selected.kind === 'freeItem'){
+        return state.freeItems.find((item) => item.id === state.selected.id) || null;
+      }
+      if(state.selected.kind === 'slot'){
+        return state.workflowSlots.find((slot) => slot.id === state.selected.id) || null;
+      }
+      if(state.selected.kind === 'board') return state.board;
+      return null;
+    }
+
+    function setSelected(next){
+      state.selected = next;
+      scheduleRender();
+    }
+
+    function scheduleRender(){
+      if(state.renderQueued) return;
+      state.renderQueued = true;
+      requestAnimationFrame(() => {
+        state.renderQueued = false;
+        if(state.dragging){
+          renderWorld();
+        }else{
+          render();
+        }
+      });
+    }
+
+    function sanitizeNumber(value, fallback){
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function ratioValue(label){
+      return ASPECT_PRESETS[label] || ASPECT_PRESETS['16:9'];
+    }
+
+    function computeBoardSize(){
+      const aspect = ratioValue(state.board.ratio);
+      const longEdge = 1240 * (state.board.sizeScale / 100);
+      const landscape = state.board.orientation !== 'portrait';
+      let w = longEdge;
+      let h = longEdge / aspect;
+      if(!landscape){
+        w = longEdge / aspect;
+        h = longEdge;
+      }
+      state.board.w = round(w);
+      state.board.h = round(h);
+    }
+
+    function preserveBoardCenter(fn){
+      const center = { x: state.board.x + state.board.w / 2, y: state.board.y + state.board.h / 2 };
+      fn();
+      state.board.x = round(center.x - state.board.w / 2);
+      state.board.y = round(center.y - state.board.h / 2);
+    }
+
+    function rescaleWorkflowSlots(oldW, oldH){
+      if(!state.workflowSlots.length || !oldW || !oldH) return;
+      const sx = state.board.w / oldW;
+      const sy = state.board.h / oldH;
+      state.workflowSlots.forEach((slot) => {
+        slot.x = round(slot.x * sx);
+        slot.y = round(slot.y * sy);
+        slot.w = round(slot.w * sx);
+        slot.h = round(slot.h * sy);
+        slot.ox = round((slot.ox || 0) * sx);
+        slot.oy = round((slot.oy || 0) * sy);
+      });
+    }
+
+    function setBoardRatio(ratio, { preserveCenter = true } = {}){
+      remember('board-ratio');
+      const oldW = state.board.w;
+      const oldH = state.board.h;
+      preserveCenter ? preserveBoardCenter(() => { state.board.ratio = ratio; computeBoardSize(); }) : (state.board.ratio = ratio, computeBoardSize());
+      rescaleWorkflowSlots(oldW, oldH);
+      syncBoardInputs();
+      scheduleRender();
+      savePreferences();
+    }
+
+    function setBoardOrientation(orientation){
+      remember('board-orientation');
+      const oldW = state.board.w;
+      const oldH = state.board.h;
+      preserveBoardCenter(() => {
+        state.board.orientation = orientation;
+        computeBoardSize();
+      });
+      rescaleWorkflowSlots(oldW, oldH);
+      syncBoardInputs();
+      scheduleRender();
+      savePreferences();
+    }
+
+    function setBoardScale(scale){
+      remember('board-scale');
+      const oldW = state.board.w;
+      const oldH = state.board.h;
+      preserveBoardCenter(() => {
+        state.board.sizeScale = clamp(scale, 10, 800);
+        computeBoardSize();
+      });
+      rescaleWorkflowSlots(oldW, oldH);
+      syncBoardInputs();
+      scheduleRender();
+      savePreferences();
+    }
+
+    function toggleBoardLock(){
+      remember('toggle-board-lock');
+      state.board.locked = !state.board.locked;
+      savePreferences();
+      render();
+    }
+
+    function toggleObjectLock(){
+      const sel = getSelectedObject();
+      if(!sel || state.selected?.kind === 'board') return;
+      remember('toggle-lock');
+      sel.locked = !sel.locked;
+      savePreferences();
+      render();
+    }
+
+    function alignSelected(){
+      const sel = getSelectedObject();
+      if(!sel) return;
+      remember('align');
+      if(state.selected?.kind === 'freeItem'){
+        const asset = getAssetById(sel.assetId);
+        if(!asset) return;
+        sel.x = snap(state.board.x + (state.board.w - sel.w) / 2);
+        sel.y = snap(state.board.y + (state.board.h - sel.h) / 2);
+      }else if(state.selected?.kind === 'slot'){
+        sel.ox = 0;
+        sel.oy = 0;
+        sel.scale = sel.scale || 100;
+      }else if(state.selected?.kind === 'board'){
+        centerBoard();
+        return;
+      }
+      scheduleRender();
+    }
+
+    function alignAllSlots(){
+      if(!state.workflowSlots.length) return;
+      remember('align-all-slots');
+      state.workflowSlots.forEach((slot) => {
+        slot.ox = 0;
+        slot.oy = 0;
+        slot.scale = slot.scale || 100;
+      });
+      scheduleRender();
+    }
+
+    function setSelectedScale(percent){
+      const sel = getSelectedObject();
+      if(!sel) return;
+      remember('scale');
+      const next = Math.max(1, round(percent));
+      if(state.selected?.kind === 'freeItem'){
+        sel.baseW = sel.baseW || sel.w;
+        sel.baseH = sel.baseH || sel.h;
+        if(sel.baseW && sel.baseH){
+          const ratio = next / 100;
+          sel.w = round(sel.baseW * ratio);
+          sel.h = round(sel.baseH * ratio);
+          sel.scale = next;
+        }
+      }else if(state.selected?.kind === 'slot'){
+        sel.scale = next;
+      }
+      scheduleRender();
+    }
+
+    function cloneAsset(asset){
+      return { ...asset };
+    }
+
+    function snapshotKey(snapshot){
+      return JSON.stringify({
+        mode: snapshot.mode,
+        exportQuality: snapshot.exportQuality,
+        transparentExport: snapshot.transparentExport,
+        board: snapshot.board,
+        gridSize: snapshot.gridSize,
+        snapGrid: snapshot.snapGrid,
+        workflowTemplate: snapshot.workflowTemplate,
+        workflowSlots: snapshot.workflowSlots,
+        freeItems: snapshot.freeItems,
+        assets: snapshot.assets.map((asset) => ({
+          id: asset.id,
+          fingerprint: asset.fingerprint,
+          name: asset.name,
+          width: asset.width,
+          height: asset.height
+        })),
+        selected: snapshot.selected
+      });
+    }
+
+    function getSceneSnapshot(){
+      return {
+        mode: state.mode,
+        exportQuality: state.exportQuality,
+        transparentExport: state.transparentExport,
+        assets: state.assets.map(cloneAsset),
+        board: { ...state.board },
+        gridSize: state.gridSize,
+        snapGrid: state.snapGrid,
+        workflowTemplate: state.workflowTemplate,
+        workflowSlots: state.workflowSlots.map((slot) => ({ ...slot })),
+        freeItems: state.freeItems.map((item) => ({ ...item })),
+        selected: state.selected ? { ...state.selected } : null
+      };
+    }
+
+    function remember(label = 'edit'){
+      const snapshot = getSceneSnapshot();
+      const last = state.undoStack[state.undoStack.length - 1];
+      if(last && snapshotKey(last) === snapshotKey(snapshot)) return;
+      state.undoStack.push(snapshot);
+      if(state.undoStack.length > 80) state.undoStack.shift();
+      state.redoStack = [];
+      state.lastHistoryLabel = label;
+    }
+
+    function rememberCompleted(before, label = 'edit'){
+      if(!before) return;
+      const after = getSceneSnapshot();
+      if(snapshotKey(before) === snapshotKey(after)) return;
+      const last = state.undoStack[state.undoStack.length - 1];
+      if(last && snapshotKey(last) === snapshotKey(before)) return;
+      state.undoStack.push(before);
+      if(state.undoStack.length > 80) state.undoStack.shift();
+      state.redoStack = [];
+      state.lastHistoryLabel = label;
+    }
+
+    function restoreSceneSnapshot(snapshot){
+      if(!snapshot) return;
+      state.mode = snapshot.mode || state.mode;
+      state.exportQuality = snapshot.exportQuality || state.exportQuality;
+      state.transparentExport = !!snapshot.transparentExport;
+      state.assets = (snapshot.assets || state.assets).map(cloneAsset);
+      state.board = { ...state.board, ...snapshot.board };
+      state.gridSize = snapshot.gridSize ?? state.gridSize;
+      state.snapGrid = snapshot.snapGrid ?? state.snapGrid;
+      state.workflowTemplate = snapshot.workflowTemplate || state.workflowTemplate;
+      state.workflowSlots = (snapshot.workflowSlots || []).map((slot) => ({ ...slot }));
+      state.freeItems = (snapshot.freeItems || []).map((item) => ({ ...item }));
+      state.selected = snapshot.selected ? { ...snapshot.selected } : null;
+      state.assetTraySignature = '';
+      computeBoardSize();
+      syncBoardInputs();
+      render();
+    }
+
+    function undoAction(){
+      if(!state.undoStack.length) return;
+      const current = getSceneSnapshot();
+      const previous = state.undoStack.pop();
+      state.redoStack.push(current);
+      restoreSceneSnapshot(previous);
+    }
+
+    function redoAction(){
+      if(!state.redoStack.length) return;
+      const current = getSceneSnapshot();
+      const next = state.redoStack.pop();
+      state.undoStack.push(current);
+      restoreSceneSnapshot(next);
+    }
+
+    function savePreferences(){
+      safeLocalStorage('set', 'collage-studio-prefs', JSON.stringify({
+        board: {
+          ratio: state.board.ratio,
+          orientation: state.board.orientation,
+          sizeScale: state.board.sizeScale,
+          lockedAspect: state.board.lockedAspect,
+          locked: state.board.locked
+        },
+        gridSize: state.gridSize,
+        snapGrid: state.snapGrid,
+        exportQuality: state.exportQuality,
+        transparentExport: state.transparentExport,
+        workflowTemplate: state.workflowTemplate,
+        shortcuts: state.shortcuts,
+        panelPrefs: state.panelPrefs,
+        panelOrder: getPanelOrder(),
+        assetPanelHeight: state.assetPanelHeight,
+        exportCollapsed: exportPanel?.classList.contains('collapsed') ?? true
+      }));
+    }
+
+    function loadPreferences(){
+      try{
+        const raw = safeLocalStorage('get', 'collage-studio-prefs');
+        if(!raw) return;
+        const data = JSON.parse(raw);
+        if(data?.board){
+          state.board.ratio = data.board.ratio || state.board.ratio;
+          state.board.orientation = data.board.orientation || state.board.orientation;
+          state.board.sizeScale = clamp(data.board.sizeScale ?? state.board.sizeScale, 10, 800);
+          state.board.lockedAspect = data.board.lockedAspect ?? state.board.lockedAspect;
+          state.board.locked = data.board.locked ?? state.board.locked;
+        }
+        state.gridSize = data.gridSize ?? state.gridSize;
+        state.snapGrid = data.snapGrid ?? state.snapGrid;
+        state.exportQuality = data.exportQuality || state.exportQuality;
+        state.transparentExport = data.transparentExport ?? state.transparentExport;
+        state.workflowTemplate = data.workflowTemplate || state.workflowTemplate;
+        state.shortcuts = { ...DEFAULT_SHORTCUTS, ...(data.shortcuts || {}) };
+        state.panelPrefs = data.panelPrefs || {};
+        state.savedPanelOrder = data.panelOrder || [];
+        state.assetPanelHeight = clamp(data.assetPanelHeight ?? state.assetPanelHeight, 130, 520);
+        state.exportCollapsed = data.exportCollapsed ?? true;
+      }catch(_err){}
+    }
+
+    const shortcutActions = [
+      { id: 'align', label: '对齐归位' },
+      { id: 'lock', label: '锁定/解锁' },
+      { id: 'focus', label: '定位到选中' },
+      { id: 'export', label: '导出' },
+      { id: 'clear', label: '清空场景' },
+      { id: 'undo', label: '撤回上一步' },
+      { id: 'redo', label: '重做上一步' },
+      { id: 'duplicate', label: '复制图层' },
+      { id: 'copy', label: '复制对象' },
+      { id: 'paste', label: '粘贴对象' }
+    ];
+
+    function formatShortcut(combo){
+      return combo.replaceAll('CtrlOrMeta', 'Ctrl/Cmd').replaceAll('Key', '').replaceAll('Digit', '').replaceAll('+', ' + ');
+    }
+
+    function matchShortcut(event, combo){
+      const parts = combo.split('+');
+      const keyPart = parts[parts.length - 1];
+      const modParts = parts.slice(0, -1);
+      const wantsCtrlOrMeta = modParts.includes('CtrlOrMeta');
+      const wantsCtrl = modParts.includes('Control');
+      const wantsMeta = modParts.includes('Meta');
+      const wantsShift = modParts.includes('Shift');
+      const wantsAlt = modParts.includes('Alt');
+      if(wantsCtrlOrMeta && !(event.ctrlKey || event.metaKey)) return false;
+      if(wantsCtrl && !event.ctrlKey) return false;
+      if(wantsMeta && !event.metaKey) return false;
+      if(wantsShift && !event.shiftKey) return false;
+      if(wantsAlt && !event.altKey) return false;
+      if(!wantsShift && !modParts.includes('Shift') && event.shiftKey && !['Tab'].includes(keyPart)) return false;
+      const normalized = keyPart.startsWith('Key') ? keyPart.slice(3).toLowerCase()
+        : keyPart.startsWith('Digit') ? keyPart.slice(5)
+        : keyPart;
+      return event.key.toLowerCase() === normalized.toLowerCase() || event.code === keyPart;
+    }
+
+    function captureShortcut(event){
+      const parts = [];
+      if(event.ctrlKey || event.metaKey) parts.push('CtrlOrMeta');
+      if(event.shiftKey) parts.push('Shift');
+      if(event.altKey) parts.push('Alt');
+      const key = event.code || event.key;
+      if(['ShiftLeft','ShiftRight','ControlLeft','ControlRight','MetaLeft','MetaRight','AltLeft','AltRight'].includes(key)){
+        return null;
+      }
+      if(key === ' ') return null;
+      parts.push(key === 'Enter' ? 'Enter' : key);
+      return parts.join('+');
+    }
+
+    function runShortcutAction(actionId){
+      if(actionId === 'align'){
+        if(state.selected?.kind === 'slot') {
+          fitSelectedAssetIntoSlot();
+        } else {
+          alignSelected();
+        }
+      } else if(actionId === 'lock') {
+        if(state.selected?.kind === 'board') toggleBoardLock();
+        else toggleObjectLock();
+      } else if(actionId === 'focus') {
+        focusSelection();
+      } else if(actionId === 'export') {
+        exportComposition();
+      } else if(actionId === 'clear') {
+        clearScene();
+      } else if(actionId === 'undo') {
+        undoAction();
+      } else if(actionId === 'redo') {
+        redoAction();
+      } else if(actionId === 'duplicate') {
+        if(state.selected?.kind === 'freeItem' || state.selected?.kind === 'slot'){
+          const item = getSelectedObject();
+          if(item && state.selected?.kind === 'freeItem') duplicateFreeItem(item);
+          if(item && state.selected?.kind === 'slot') duplicateWorkflowSlot(item);
+        }
+      } else if(actionId === 'copy') {
+        copySelection();
+      } else if(actionId === 'paste') {
+        pasteSelection();
+      }
+    }
+
+    function renderShortcutPanel(){
+      shortcutPanel.innerHTML = shortcutActions.map((action) => {
+        const value = state.shortcuts[action.id] || '';
+        const editing = state.shortcutEdit === action.id;
+        return `
+          <div class="list-item">
+            <div class="name">${action.label}</div>
+            <div class="right">
+              <span class="tag">${editing ? '按下组合键' : formatShortcut(value)}</span>
+              <button class="mini" type="button" data-shortcut-edit="${action.id}">${editing ? '录入中' : '修改'}</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function focusSelection(){
+      const target = getSelectedObject() || state.board;
+      if(!target) return;
+      const rect = viewport.getBoundingClientRect();
+      const cx = target.x + target.w / 2;
+      const cy = target.y + target.h / 2;
+      state.camera.x = rect.width / (2 * state.camera.zoom) - cx;
+      state.camera.y = rect.height / (2 * state.camera.zoom) - cy;
+      scheduleRender();
+    }
+
+    function copySelection(){
+      const selected = getSelectedObject();
+      if(!selected || !state.selected) return;
+      state.clipboardItem = {
+        kind: state.selected.kind,
+        payload: JSON.parse(JSON.stringify(selected))
+      };
+    }
+
+    function pasteSelection(){
+      if(!state.clipboardItem) return;
+      remember('paste');
+      const { kind, payload } = state.clipboardItem;
+      if(kind === 'freeItem'){
+        const clone = { ...payload, id: uid('free'), x: payload.x + 36, y: payload.y + 36, locked: false };
+        state.freeItems.push(clone);
+        setSelected({ kind: 'freeItem', id: clone.id });
+      } else if(kind === 'slot'){
+        if(state.mode === 'workflow'){
+          const clone = {
+            ...payload,
+            id: uid('slot'),
+            x: payload.x + 28,
+            y: payload.y + 28,
+            locked: false
+          };
+          state.workflowSlots.push(clone);
+          setSelected({ kind: 'slot', id: clone.id });
+        } else if(payload.assetId){
+          const asset = getAssetById(payload.assetId);
+          if(asset) placeFreeItem(asset, getBoardCenter(), { skipHistory: true });
+        }
+      }
+      scheduleRender();
+    }
+
+    function addWorkflowSlot(){
+      const w = round(state.board.w * 0.36);
+      const h = round(state.board.h * 0.36);
+      const slot = {
+        id: uid('slot'),
+        x: round((state.board.w - w) / 2),
+        y: round((state.board.h - h) / 2),
+        w,
+        h,
+        assetId: null,
+        scale: 100,
+        ox: 0,
+        oy: 0,
+        locked: false
+      };
+      remember('add-slot');
+      state.workflowSlots.push(slot);
+      setSelected({ kind: 'slot', id: slot.id });
+      scheduleRender();
+    }
+
+    function removeSelectedWorkflowSlot(){
+      if(state.selected?.kind !== 'slot') return;
+      const idx = state.workflowSlots.findIndex((slot) => slot.id === state.selected.id);
+      if(idx >= 0){
+        remember('remove-slot');
+        state.workflowSlots.splice(idx, 1);
+        setSelected(null);
+      }
+      scheduleRender();
+    }
+
+    function centerBoard(){
+      if(state.board.locked) return;
+      const rect = viewport.getBoundingClientRect();
+      const worldCenterX = rect.width / (2 * state.camera.zoom) - state.camera.x;
+      const worldCenterY = rect.height / (2 * state.camera.zoom) - state.camera.y;
+      state.board.x = round(worldCenterX - state.board.w / 2);
+      state.board.y = round(worldCenterY - state.board.h / 2);
+      scheduleRender();
+    }
+
+    function setupDockedLayout(){
+      if(assetPanel && !assetPanel.classList.contains('asset-side')){
+        assetPanel.classList.add('asset-side');
+        app.appendChild(assetPanel);
+      }
+
+      if(exportPanel && panelDock.contains(exportPanel)){
+        panelDock.prepend(exportPanel);
+      }
+
+      if(shortcutPanelSection && !shortcutPanelSection.classList.contains('shortcut-float')){
+        shortcutPanelSection.classList.add('shortcut-float', 'collapsed');
+        $('.toolbar')?.appendChild(shortcutPanelSection);
+      }
+    }
+
+    function insertPanelIntoDock(panel){
+      const order = state.savedPanelOrder || [];
+      const siblings = Array.from(panelDock.querySelectorAll('.panel'));
+      const targetIndex = order.indexOf(panel.id);
+      if(targetIndex < 0 || !siblings.length){
+        panelDock.appendChild(panel);
+        return;
+      }
+      const anchor = siblings.find((item) => order.indexOf(item.id) > targetIndex);
+      if(anchor) anchor.before(panel);
+      else panelDock.appendChild(panel);
+    }
+
+    function initPanelSystem(){
+      const panels = Array.from(panelDock.querySelectorAll('.panel'));
+      panels.forEach((panel, index) => {
+        if(!panel.id) panel.id = `panel_${index}`;
+        panel.dataset.panelId = panel.id;
+        const head = panel.querySelector('.panel-head');
+        if(!head || head.querySelector('.panel-actions')) return;
+        head.classList.add('panel-handle');
+        const actions = document.createElement('div');
+        actions.className = 'panel-actions';
+        actions.innerHTML = `
+          <button class="mini" type="button" title="上移" aria-label="上移" data-panel-up="${panel.id}">↑</button>
+          <button class="mini" type="button" title="下移" aria-label="下移" data-panel-down="${panel.id}">↓</button>
+          <button class="mini" type="button" data-panel-float="${panel.id}">分离</button>
+        `;
+        head.appendChild(actions);
+      });
+      if(Array.isArray(state.savedPanelOrder) && state.savedPanelOrder.length){
+        state.savedPanelOrder.forEach((panelId) => {
+          const panel = document.getElementById(panelId);
+          if(panel) panelDock.appendChild(panel);
+        });
+      }
+      Object.entries(state.panelPrefs || {}).forEach(([panelId, pref]) => {
+        if(pref?.floating) togglePanelFloat(panelId);
+      });
+      document.addEventListener('click', (event) => {
+        const up = event.target.closest('[data-panel-up]');
+        const down = event.target.closest('[data-panel-down]');
+        const floatBtn = event.target.closest('[data-panel-float]');
+        if(up) movePanel(up.dataset.panelUp, -1);
+        if(down) movePanel(down.dataset.panelDown, 1);
+        if(floatBtn) togglePanelFloat(floatBtn.dataset.panelFloat);
+      });
+      document.addEventListener('pointerdown', beginPanelDrag);
+      document.addEventListener('pointermove', updatePanelDrag);
+      document.addEventListener('pointerup', endPanelDrag);
+    }
+
+    function getPanelOrder(){
+      return Array.from(panelDock.querySelectorAll('.panel')).map((panel) => panel.id);
+    }
+
+    function movePanel(panelId, delta){
+      const panels = getPanelOrder();
+      const index = panels.indexOf(panelId);
+      const nextIndex = clamp(index + delta, 0, panels.length - 1);
+      if(index < 0 || index === nextIndex) return;
+      const current = document.getElementById(panelId);
+      const anchor = panelDock.querySelectorAll('.panel')[nextIndex];
+      if(delta > 0){
+        anchor.after(current);
+      }else{
+        anchor.before(current);
+      }
+      savePreferences();
+    }
+
+    function togglePanelFloat(panelId){
+      const panel = document.getElementById(panelId);
+      if(!panel) return;
+      const pref = state.panelPrefs[panelId] || { floating: false, x: 24, y: 24 };
+      pref.floating = !pref.floating;
+      if(pref.floating){
+        panel.classList.add('panel-floating');
+        panel.style.left = `${pref.x}px`;
+        panel.style.top = `${pref.y}px`;
+        floatingLayer.appendChild(panel);
+      }else{
+        panel.classList.remove('panel-floating');
+        panel.style.left = '';
+        panel.style.top = '';
+        insertPanelIntoDock(panel);
+      }
+      state.panelPrefs[panelId] = pref;
+      updatePanelButtons();
+      savePreferences();
+    }
+
+    function updatePanelButtons(){
+      Array.from(document.querySelectorAll('[data-panel-float]')).forEach((btn) => {
+        const pref = state.panelPrefs[btn.dataset.panelFloat];
+        btn.textContent = pref?.floating ? '收回' : '分离';
+      });
+    }
+
+    function beginPanelDrag(event){
+      const head = event.target.closest('.panel-floating .panel-head');
+      if(!head || event.target.closest('.panel-actions')) return;
+      const panel = head.closest('.panel');
+      if(!panel) return;
+      const rect = panel.getBoundingClientRect();
+      state.panelDrag = {
+        id: panel.id,
+        dx: event.clientX - rect.left,
+        dy: event.clientY - rect.top
+      };
+    }
+
+    function updatePanelDrag(event){
+      if(!state.panelDrag) return;
+      const panel = document.getElementById(state.panelDrag.id);
+      if(!panel) return;
+      const x = event.clientX - state.panelDrag.dx;
+      const y = event.clientY - state.panelDrag.dy;
+      panel.style.left = `${x}px`;
+      panel.style.top = `${y}px`;
+      const pref = state.panelPrefs[panel.id] || {};
+      pref.x = x;
+      pref.y = y;
+      state.panelPrefs[panel.id] = pref;
+    }
+
+    function endPanelDrag(){
+      if(!state.panelDrag) return;
+      const panel = document.getElementById(state.panelDrag.id);
+      if(panel){
+        const rect = panel.getBoundingClientRect();
+        let x = rect.left;
+        let y = rect.top;
+        if(rect.left < 36) x = 16;
+        if(window.innerWidth - rect.right < 36) x = window.innerWidth - rect.width - 16;
+        if(rect.top < 20) y = 16;
+        if(window.innerHeight - rect.bottom < 20) y = window.innerHeight - rect.height - 16;
+        panel.style.left = `${x}px`;
+        panel.style.top = `${y}px`;
+        const pref = state.panelPrefs[panel.id] || {};
+        pref.x = x;
+        pref.y = y;
+        state.panelPrefs[panel.id] = pref;
+      }
+      state.panelDrag = null;
+      savePreferences();
+    }
+
+    function setMode(mode){
+      state.mode = mode;
+      $('#modeToggle').querySelectorAll('button').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+      $('#freePanel').classList.toggle('hidden', mode !== 'free');
+      $('#workflowPanel').classList.toggle('hidden', mode !== 'workflow');
+      modeLabel.textContent = mode === 'free' ? '无限画布' : '固定流程';
+      workspaceTitle.textContent = mode === 'free' ? '无限画布' : '固定工作流';
+      workspaceSubtitle.textContent = mode === 'free'
+        ? '把导出框放在任意位置，自由拖拽图片排布，然后按当前内容导出。'
+        : '先套用模板，再拖动框架、填入图片，最后一键拼接成目标画布。';
+      if(mode === 'workflow' && state.workflowSlots.length === 0){
+        rebuildWorkflowTemplate(state.workflowTemplate);
+      }
+      savePreferences();
+      scheduleRender();
+    }
+
+    function buildTemplate(template, w, h){
+      const builder = TEMPLATE_BUILDERS[template] || TEMPLATE_BUILDERS.blank || TEMPLATE_BUILDERS['two-two'];
+      return builder(w, h);
+    }
+
+    function rebuildWorkflowTemplate(template){
+      remember('rebuild-template');
+      const oldSlots = state.workflowSlots;
+      const nextSlots = buildTemplate(template, state.board.w, state.board.h);
+      for(let i = 0; i < nextSlots.length; i++){
+        if(oldSlots[i]?.assetId){
+          nextSlots[i].assetId = oldSlots[i].assetId;
+          nextSlots[i].scale = oldSlots[i].scale ?? oldSlots[i].zoom ?? 100;
+          nextSlots[i].ox = oldSlots[i].ox ?? 0;
+          nextSlots[i].oy = oldSlots[i].oy ?? 0;
+          nextSlots[i].locked = oldSlots[i].locked ?? false;
+        }
+      }
+      state.workflowTemplate = template;
+      state.workflowSlots = nextSlots;
+      scheduleRender();
+    }
+
+    function updateBoardSize(newW, newH){
+      preserveBoardCenter(() => {
+        const guess = Math.max(sanitizeNumber(newW, state.board.w), sanitizeNumber(newH, state.board.h));
+        state.board.sizeScale = clamp((guess / 1240) * 100, 10, 800);
+        computeBoardSize();
+      });
+      syncBoardInputs();
+      scheduleRender();
+      savePreferences();
+    }
+
+    function syncBoardInputs(){
+      $('#boardX').value = round(state.board.x);
+      $('#boardY').value = round(state.board.y);
+      $('#boardRatio').value = state.board.ratio;
+      $('#boardOrientation').value = state.board.orientation;
+      $('#boardScale').value = state.board.sizeScale;
+      $('#workflowW').value = round(state.board.w);
+      $('#workflowH').value = round(state.board.h);
+    }
+
+    function updateCamera(x, y, zoom){
+      state.camera.x = x;
+      state.camera.y = y;
+      state.camera.zoom = clamp(zoom, 0.08, 12);
+      scheduleRender();
+    }
+
+    function fitBoardToViewport(){
+      const rect = viewport.getBoundingClientRect();
+      const margin = 0.88;
+      const zoom = Math.min((rect.width * margin) / state.board.w, (rect.height * margin) / state.board.h);
+      state.camera.zoom = clamp(zoom, 0.08, 12);
+      state.camera.x = rect.width / (2 * state.camera.zoom) - (state.board.x + state.board.w / 2);
+      state.camera.y = rect.height / (2 * state.camera.zoom) - (state.board.y + state.board.h / 2);
+      scheduleRender();
+    }
+
+    function placeFreeItem(asset, worldPos, options = {}){
+      const aspect = asset.width / asset.height;
+      const h = 360;
+      const w = Math.round(h * aspect);
+      if(!options.skipHistory) remember('place-image');
+      state.freeItems.push({
+        id: uid('free'),
+        assetId: asset.id,
+        x: worldPos.x - w / 2,
+        y: worldPos.y - h / 2,
+        w,
+        h,
+        baseW: w,
+        baseH: h,
+        sourceW: asset.width,
+        sourceH: asset.height,
+        scale: 100,
+        aspectLocked: true,
+        cropEnabled: false,
+        cropScale: 100,
+        cropOx: 0,
+        cropOy: 0,
+        locked: false
+      });
+      setSelected({ kind: 'freeItem', id: state.freeItems[state.freeItems.length - 1].id });
+    }
+
+    function assignToSlot(slotId, assetId){
+      const slot = state.workflowSlots.find((s) => s.id === slotId);
+      if(!slot) return;
+      remember('assign-slot');
+      slot.assetId = assetId;
+      slot.scale = slot.scale || 100;
+      slot.ox = slot.ox || 0;
+      slot.oy = slot.oy || 0;
+      setSelected({ kind: 'slot', id: slotId });
+      scheduleRender();
+    }
+
+    function renderAssetTray(){
+      assetCount.textContent = `${state.assets.length} 张`;
+      chipsAssets.textContent = state.assets.length;
+      const signature = state.assets.map((asset) => `${asset.id}:${asset.fingerprint || asset.name}`).join('|');
+      if(signature && signature === state.assetTraySignature) return;
+      const scrollTop = assetTray.scrollTop;
+      state.assetTraySignature = signature;
+      if(!state.assets.length){
+        assetTray.innerHTML = `
+          <div class="asset-drop-hint">把外部图片批量拖到这里，即可加入素材栏</div>
+          <div class="tag" style="grid-column:1/-1;justify-content:center;padding:14px 12px;">
+            <strong>暂无素材</strong> <span>先上传图片，再拖到画布里</span>
+          </div>`;
+        return;
+      }
+      assetTray.innerHTML = `
+        <div class="asset-drop-hint">松手后批量加入素材栏</div>
+        ${state.assets.map((asset) => `
+        <div class="asset-card" draggable="true" data-asset-id="${asset.id}">
+          <button class="asset-remove" type="button" data-asset-remove="${asset.id}" title="删除素材" aria-label="删除素材">×</button>
+          <div class="asset-thumb">
+            <img src="${asset.url}" alt="${escapeHtml(asset.name)}" />
+          </div>
+          <div class="asset-meta">
+            <strong title="${escapeHtml(asset.name)}">${escapeHtml(asset.name)}</strong>
+            <span>${asset.width} × ${asset.height}</span>
+          </div>
+        </div>
+      `).join('')}`;
+      assetTray.scrollTop = scrollTop;
+    }
+
+    function escapeHtml(value){
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function renderInspector(){
+      const selected = getSelectedObject();
+      selectedType.textContent = '无';
+      inspector.innerHTML = '';
+
+      if(!selected){
+        inspector.innerHTML = `<div class="tag">点击画布中的图片、框架或导出框，即可查看并编辑当前参数。</div>`;
+        return;
+      }
+
+      if(state.selected.kind === 'board'){
+        selectedType.textContent = '导出框';
+        inspector.innerHTML = `
+          <div class="row">
+            <div class="control grow"><label>X</label><input type="number" data-prop="x" value="${round(selected.x)}" /></div>
+            <div class="control grow"><label>Y</label><input type="number" data-prop="y" value="${round(selected.y)}" /></div>
+          </div>
+          <div class="tag">画幅由左侧比例、方向和尺寸控制，不再手动输入宽高。</div>
+          <div class="row wrap">
+            <button class="mini" data-act="toggle-board-lock" type="button">${state.board.locked ? '已锁定导出框' : '锁定导出框'}</button>
+            <button class="mini" data-act="board-fit" type="button">适配视图</button>
+            <button class="mini" data-act="board-focus" type="button">定位导出框</button>
+          </div>`;
+        return;
+      }
+
+      if(state.selected.kind === 'freeItem'){
+        selectedType.textContent = '图片图层';
+        const asset = getAssetById(selected.assetId);
+        inspector.innerHTML = `
+          <div class="tag"><strong>${escapeHtml(asset?.name || '未命名')}</strong></div>
+          <div class="row">
+            <div class="control grow"><label>X</label><input type="number" data-prop="x" value="${round(selected.x)}" /></div>
+            <div class="control grow"><label>Y</label><input type="number" data-prop="y" value="${round(selected.y)}" /></div>
+          </div>
+          <div class="row">
+            <div class="control grow"><label>宽</label><input type="number" data-prop="w" value="${round(selected.w)}" /></div>
+            <div class="control grow"><label>高</label><input type="number" data-prop="h" value="${round(selected.h)}" /></div>
+          </div>
+          <div class="control"><label>缩放百分比</label><input type="number" min="1" step="1" data-prop="scale" value="${selected.scale || 100}" /></div>
+          <div class="row wrap">
+            <button class="mini ${selected.cropEnabled ? 'active' : ''}" data-act="toggle-crop" type="button">${selected.cropEnabled ? '关闭裁切' : '开启裁切'}</button>
+            <button class="mini" data-act="reset-crop" type="button">重置裁切</button>
+          </div>
+          ${selected.cropEnabled ? `
+            <div class="control"><label>裁切缩放</label><input type="range" min="50" max="300" step="1" data-prop="cropScale" value="${selected.cropScale || 100}" /></div>
+            <div class="control"><label>裁切水平偏移</label><input type="range" min="-1000" max="1000" step="1" data-prop="cropOx" value="${selected.cropOx || 0}" /></div>
+            <div class="control"><label>裁切垂直偏移</label><input type="range" min="-1000" max="1000" step="1" data-prop="cropOy" value="${selected.cropOy || 0}" /></div>
+          ` : ''}
+          <div class="row wrap">
+            <button class="mini" data-act="toggle-aspect" type="button">${selected.aspectLocked === false ? '自由比例' : '锁定比例'}</button>
+            <button class="mini" data-act="lock" type="button">${selected.locked ? '解锁' : '锁定'}</button>
+            <button class="mini" data-act="align" type="button">一键归位</button>
+            <button class="mini" data-act="layer-up" type="button">上移</button>
+            <button class="mini" data-act="layer-down" type="button">下移</button>
+            <button class="mini" data-act="bring-front" type="button">置顶</button>
+            <button class="mini" data-act="send-back" type="button">置底</button>
+            <button class="mini" data-act="duplicate" type="button">复制</button>
+            <button class="mini" data-act="delete" type="button">删除</button>
+          </div>`;
+        return;
+      }
+
+      if(state.selected.kind === 'slot'){
+        selectedType.textContent = '工作流框架';
+        const asset = getAssetById(selected.assetId);
+        inspector.innerHTML = `
+          <div class="tag">${asset ? `<strong>${escapeHtml(asset.name)}</strong>` : '<strong>空槽位</strong>'}</div>
+          <div class="row">
+            <div class="control grow"><label>X</label><input type="number" data-prop="x" value="${round(selected.x)}" /></div>
+            <div class="control grow"><label>Y</label><input type="number" data-prop="y" value="${round(selected.y)}" /></div>
+          </div>
+          <div class="row">
+            <div class="control grow"><label>宽</label><input type="number" data-prop="w" value="${round(selected.w)}" /></div>
+            <div class="control grow"><label>高</label><input type="number" data-prop="h" value="${round(selected.h)}" /></div>
+          </div>
+          <div class="control"><label>图片缩放百分比</label><input type="number" min="1" step="1" data-prop="scale" value="${selected.scale || 100}" /></div>
+          <div class="control"><label>水平偏移</label><input type="range" min="-800" max="800" step="1" data-prop="ox" value="${selected.ox || 0}" /></div>
+          <div class="control"><label>垂直偏移</label><input type="range" min="-800" max="800" step="1" data-prop="oy" value="${selected.oy || 0}" /></div>
+          <div class="row wrap">
+            <button class="mini" data-act="lock" type="button">${selected.locked ? '解锁' : '锁定'}</button>
+            <button class="mini" data-act="align" type="button">一键归位</button>
+            <button class="mini" data-act="fill-slot" type="button">自动铺满</button>
+            <button class="mini" data-act="layer-up" type="button">上移</button>
+            <button class="mini" data-act="layer-down" type="button">下移</button>
+            <button class="mini" data-act="bring-front" type="button">置顶</button>
+            <button class="mini" data-act="send-back" type="button">置底</button>
+            <button class="mini" data-act="duplicate" type="button">复制框架</button>
+            <button class="mini" data-act="clear-slot" type="button">清空槽位</button>
+          </div>`;
+      }
+    }
+
+    function renderWorld(){
+      const zoom = state.camera.zoom;
+      world.style.transform = `translate(${state.camera.x}px, ${state.camera.y}px) scale(${zoom})`;
+      world.style.setProperty('--ui-scale', `${1 / zoom}`);
+      grid.style.transform = `translate(${state.camera.x * zoom}px, ${state.camera.y * zoom}px) scale(${zoom})`;
+      grid.style.backgroundSize = `${state.gridSize * zoom}px ${state.gridSize * zoom}px`;
+      zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+      chipsBoard.textContent = state.mode === 'workflow' ? String(state.workflowSlots.length || 1) : '1';
+
+      const html = [];
+      const boardClass = state.mode === 'workflow' ? 'board workflow' : 'board free';
+      html.push(`
+        <div class="${boardClass} ${state.board.locked ? 'locked' : ''} ${state.selected?.kind === 'board' ? 'selected' : ''}" data-kind="board"
+          style="left:${state.board.x}px;top:${state.board.y}px;width:${state.board.w}px;height:${state.board.h}px;">
+          <div class="board-label">${state.mode === 'workflow' ? '固定流程导出框' : '自由导出框'}</div>
+          ${renderBoardSelectionHandles('board')}
+          ${state.mode === 'workflow' ? renderWorkflowSlots() : ''}
+        </div>
+      `);
+
+      for(const item of state.freeItems){
+        const asset = getAssetById(item.assetId);
+        if(!asset) continue;
+        html.push(`
+          <div class="free-item ${item.locked ? 'locked' : ''} ${state.selected?.kind === 'freeItem' && state.selected.id === item.id ? 'selected' : ''}"
+            data-kind="freeItem" data-id="${item.id}"
+            style="left:${item.x}px;top:${item.y}px;width:${item.w}px;height:${item.h}px;">
+            ${renderFreeImage(item, asset)}
+            <div class="caption">${escapeHtml(asset.name)}</div>
+            ${renderBoardSelectionHandles('freeItem', item.id)}
+          </div>
+        `);
+      }
+
+      world.innerHTML = html.join('');
+    }
+
+    function getCoverDrawRect(frame, asset, scalePercent = 100, ox = 0, oy = 0){
+      const baseScale = Math.max(frame.w / asset.width, frame.h / asset.height);
+      const scale = baseScale * ((scalePercent || 100) / 100);
+      const drawW = asset.width * scale;
+      const drawH = asset.height * scale;
+      return {
+        x: (frame.w - drawW) / 2 + (ox || 0),
+        y: (frame.h - drawH) / 2 + (oy || 0),
+        w: drawW,
+        h: drawH
+      };
+    }
+
+    function renderFreeImage(item, asset){
+      if(!item.cropEnabled){
+        return `<img src="${asset.url}" alt="${escapeHtml(asset.name)}">`;
+      }
+      const rect = getCoverDrawRect(item, asset, item.cropScale || 100, item.cropOx || 0, item.cropOy || 0);
+      return `
+        <div class="frame-inside">
+          <img src="${asset.url}" alt="${escapeHtml(asset.name)}"
+            style="left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px;">
+        </div>
+      `;
+    }
+
+    function renderWorkflowSlots(){
+      const parts = [];
+      state.workflowSlots.forEach((slot, index) => {
+        const asset = getAssetById(slot.assetId);
+        const selected = state.selected?.kind === 'slot' && state.selected.id === slot.id;
+        parts.push(`
+          <div class="slot ${slot.locked ? 'locked' : ''} ${selected ? 'selected' : ''} ${asset ? '' : 'empty'}"
+            data-kind="slot" data-id="${slot.id}"
+            style="left:${slot.x}px;top:${slot.y}px;width:${slot.w}px;height:${slot.h}px;">
+            <div class="badge">框 ${index + 1}</div>
+            ${asset ? renderSlotImage(slot, asset) : ''}
+            ${renderBoardSelectionHandles('slot', slot.id)}
+          </div>
+        `);
+      });
+      return parts.join('');
+    }
+
+    function renderSlotImage(slot, asset){
+      const rect = getCoverDrawRect(slot, asset, slot.scale || 100, slot.ox || 0, slot.oy || 0);
+      return `
+        <div class="frame-inside">
+          <img class="asset" src="${asset.url}" alt="${escapeHtml(asset.name)}"
+            style="left:${rect.x}px;top:${rect.y}px;width:${rect.w}px;height:${rect.h}px;">
+        </div>
+      `;
+    }
+
+    function renderBoardSelectionHandles(kind, id){
+      if(!state.selected || state.selected.kind !== kind || (id && state.selected.id !== id)) return '';
+      const selected = getSelectedObject();
+      if((kind === 'freeItem' || kind === 'slot') && selected?.locked) return '';
+      if(kind === 'board' && state.board.locked) return '';
+      return `
+        <div class="handles">
+          <div class="handle nw" data-handle="nw"></div>
+          <div class="handle ne" data-handle="ne"></div>
+          <div class="handle sw" data-handle="sw"></div>
+          <div class="handle se" data-handle="se"></div>
+          ${kind === 'freeItem' ? `
+            <div class="handle n" data-handle="n"></div>
+            <div class="handle e" data-handle="e"></div>
+            <div class="handle s" data-handle="s"></div>
+            <div class="handle w" data-handle="w"></div>
+          ` : ''}
+          <div class="handle mid move" data-handle="move"></div>
+        </div>
+      `;
+    }
+
+    function render(){
+      syncBoardInputs();
+      renderAssetTray();
+      renderInspector();
+      renderShortcutPanel();
+      renderWorld();
+      updatePanelButtons();
+      $('#qualityGroup').querySelectorAll('button').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.quality === state.exportQuality);
+      });
+      $('#transparentBtn').classList.toggle('active', state.transparentExport);
+      $('#snapGridBtn').classList.toggle('active', state.snapGrid);
+      $('#boardRatio').value = state.board.ratio;
+      $('#boardOrientation').value = state.board.orientation;
+      $('#boardScale').value = state.board.sizeScale;
+      $('#lockBoardBtn').textContent = state.board.locked ? '已锁定导出框' : '锁定导出框';
+    }
+
+    async function loadFiles(files){
+      const added = [];
+      const before = getSceneSnapshot();
+      for(const file of files){
+        if(!file.type.startsWith('image/')) continue;
+        const url = URL.createObjectURL(file);
+        const meta = await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, img });
+          img.onerror = reject;
+          img.src = url;
+        }).catch(() => null);
+        if(!meta){
+          URL.revokeObjectURL(url);
+          continue;
+        }
+        const fingerprint = `${file.name}|${file.size}|${file.lastModified || 0}|${meta.width}x${meta.height}`;
+        const existing = state.assets.find((asset) => asset.fingerprint === fingerprint);
+        if(existing){
+          URL.revokeObjectURL(url);
+          added.push(existing);
+          continue;
+        }
+        const asset = {
+          id: uid('asset'),
+          name: file.name.replace(/\.[^.]+$/, ''),
+          fileName: file.name,
+          fingerprint,
+          url,
+          width: meta.width,
+          height: meta.height,
+          img: meta.img
+        };
+      state.assets.push(asset);
+      added.push(asset);
+      }
+      if(added.length){
+        rememberCompleted(before, 'add-assets');
+        state.assetTraySignature = '';
+        scheduleRender();
+      }
+      return added;
+    }
+
+    function applyNumericEdit(target, prop, value){
+      const n = sanitizeNumber(value, target[prop] || 0);
+      target[prop] = n;
+      scheduleRender();
+    }
+
+    function duplicateFreeItem(item){
+      remember('duplicate-free-item');
+      const copy = { ...item, id: uid('free'), x: item.x + 28, y: item.y + 28 };
+      state.freeItems.push(copy);
+      setSelected({ kind: 'freeItem', id: copy.id });
+    }
+
+    function duplicateWorkflowSlot(slot){
+      remember('duplicate-slot');
+      const copy = { ...slot, id: uid('slot'), x: slot.x + 28, y: slot.y + 28, locked: false };
+      state.workflowSlots.push(copy);
+      setSelected({ kind: 'slot', id: copy.id });
+      scheduleRender();
+    }
+
+    function deleteSelected(){
+      if(!state.selected) return;
+      remember('delete-selected');
+      if(state.selected.kind === 'freeItem'){
+        const idx = state.freeItems.findIndex((item) => item.id === state.selected.id);
+        if(idx >= 0) state.freeItems.splice(idx, 1);
+      }else if(state.selected.kind === 'slot'){
+        const slot = state.workflowSlots.find((s) => s.id === state.selected.id);
+        if(slot) slot.assetId = null;
+      }
+      state.selected = null;
+      scheduleRender();
+    }
+
+    function removeAsset(assetId){
+      const idx = state.assets.findIndex((asset) => asset.id === assetId);
+      if(idx < 0) return;
+      remember('remove-asset');
+      const [asset] = state.assets.splice(idx, 1);
+      state.freeItems = state.freeItems.filter((item) => item.assetId !== assetId);
+      state.workflowSlots.forEach((slot) => {
+        if(slot.assetId === assetId){
+          slot.assetId = null;
+          slot.scale = 100;
+          slot.ox = 0;
+          slot.oy = 0;
+        }
+      });
+      if(state.selected?.kind === 'freeItem' || state.selected?.kind === 'slot'){
+        const selected = getSelectedObject();
+        if(!selected || selected.assetId === assetId){
+          state.selected = null;
+        }
+      }
+      state.assetTraySignature = '';
+      scheduleRender();
+    }
+
+    function selectedLayerList(){
+      if(state.selected?.kind === 'freeItem') return state.freeItems;
+      if(state.selected?.kind === 'slot') return state.workflowSlots;
+      return null;
+    }
+
+    function moveSelectedLayer(delta){
+      const list = selectedLayerList();
+      if(!list || !state.selected?.id) return;
+      const idx = list.findIndex((item) => item.id === state.selected.id);
+      const next = clamp(idx + delta, 0, list.length - 1);
+      if(idx < 0 || idx === next) return;
+      remember('move-layer');
+      const [item] = list.splice(idx, 1);
+      list.splice(next, 0, item);
+      scheduleRender();
+    }
+
+    function bringForward(){
+      const list = selectedLayerList();
+      if(!list || !state.selected?.id) return;
+      const idx = list.findIndex((item) => item.id === state.selected.id);
+      if(idx < 0 || idx === list.length - 1) return;
+      remember('bring-front');
+      const [item] = list.splice(idx, 1);
+      list.push(item);
+      scheduleRender();
+    }
+
+    function sendBackward(){
+      const list = selectedLayerList();
+      if(!list || !state.selected?.id) return;
+      const idx = list.findIndex((item) => item.id === state.selected.id);
+      if(idx <= 0) return;
+      remember('send-back');
+      const [item] = list.splice(idx, 1);
+      list.unshift(item);
+      scheduleRender();
+    }
+
+    function autoFillSlots(){
+      if(!state.workflowSlots.length || !state.assets.length) return;
+      remember('auto-fill-slots');
+      state.workflowSlots.forEach((slot, index) => {
+        slot.assetId = state.assets[index % state.assets.length].id;
+        slot.scale = slot.scale || 100;
+      });
+      scheduleRender();
+    }
+
+    function clearWorkflowSlot(slotId){
+      const slot = state.workflowSlots.find((s) => s.id === slotId);
+      if(slot){
+        remember('clear-slot');
+        slot.assetId = null;
+      }
+      scheduleRender();
+    }
+
+    function fitSelectedAssetIntoSlot(){
+      const selected = getSelectedObject();
+      if(state.selected?.kind !== 'slot' || !selected?.assetId) return;
+      remember('fit-slot');
+      selected.scale = 100;
+      selected.ox = 0;
+      selected.oy = 0;
+      scheduleRender();
+    }
+
+    async function exportComposition(){
+      if(!state.assets.length){
+        alert('请先上传至少一张图片。');
+        return;
+      }
+      const board = state.board;
+      const preset = EXPORT_PRESETS[state.exportQuality];
+      const aspect = board.w / board.h;
+      let targetW = preset.longEdge;
+      let targetH = round(targetW / aspect);
+      if(aspect < 1){
+        targetH = preset.longEdge;
+        targetW = round(targetH * aspect);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      if(!state.transparentExport){
+        ctx.fillStyle = $('#exportBg').value || '#ffffff';
+        ctx.fillRect(0, 0, targetW, targetH);
+      }else{
+        ctx.clearRect(0, 0, targetW, targetH);
+      }
+
+      const scaleX = targetW / board.w;
+      const scaleY = targetH / board.h;
+
+      if(state.mode === 'workflow'){
+        for(const slot of state.workflowSlots){
+          const asset = getAssetById(slot.assetId);
+          if(!asset) continue;
+          const rect = getCoverDrawRect(slot, asset, slot.scale || 100, slot.ox || 0, slot.oy || 0);
+          const x = (slot.x + rect.x) * scaleX;
+          const y = (slot.y + rect.y) * scaleY;
+          const w = rect.w * scaleX;
+          const h = rect.h * scaleY;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(slot.x * scaleX, slot.y * scaleY, slot.w * scaleX, slot.h * scaleY);
+          ctx.clip();
+          ctx.drawImage(asset.img, x, y, w, h);
+          ctx.restore();
+        }
+      }else{
+        for(const item of state.freeItems){
+          const asset = getAssetById(item.assetId);
+          if(!asset) continue;
+          const x = (item.x - board.x) * scaleX;
+          const y = (item.y - board.y) * scaleY;
+          const w = item.w * scaleX;
+          const h = item.h * scaleY;
+          if(item.cropEnabled){
+            const rect = getCoverDrawRect(item, asset, item.cropScale || 100, item.cropOx || 0, item.cropOy || 0);
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+            ctx.drawImage(asset.img, x + rect.x * scaleX, y + rect.y * scaleY, rect.w * scaleX, rect.h * scaleY);
+            ctx.restore();
+          }else{
+            ctx.drawImage(asset.img, x, y, w, h);
+          }
+        }
+      }
+
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if(!blob){
+        alert('导出失败，请重试。');
+        return;
+      }
+      const link = document.createElement('a');
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      link.href = URL.createObjectURL(blob);
+      link.download = `collage-${state.mode}-${state.exportQuality}-${stamp}.png`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+    }
+
+    function getBoardCenter(){
+      return {
+        x: state.board.x + state.board.w / 2,
+        y: state.board.y + state.board.h / 2
+      };
+    }
+
+    function snap(value){
+      if(!state.snapGrid) return value;
+      return Math.round(value / state.gridSize) * state.gridSize;
+    }
+
+    function beginInteraction(event){
+      const target = event.target.closest('[data-kind], [data-handle]');
+      const worldPos = screenToWorld(event.clientX, event.clientY);
+      const boardRect = {
+        x: state.board.x,
+        y: state.board.y,
+        w: state.board.w,
+        h: state.board.h
+      };
+
+      if(target?.dataset.handle){
+        const kindNode = target.closest('[data-kind]');
+        if(!kindNode) return;
+        const kind = kindNode.dataset.kind;
+        const id = kindNode.dataset.id || null;
+        const obj = kind === 'board'
+          ? state.board
+          : kind === 'freeItem'
+            ? state.freeItems.find((item) => item.id === id)
+            : state.workflowSlots.find((slot) => slot.id === id);
+        if(!obj) return;
+        setSelected(kind === 'board' ? { kind: 'board' } : { kind, id });
+        if(kind !== 'board' && obj.locked){
+          return;
+        }
+        if(target.dataset.handle === 'move'){
+          state.dragging = {
+            type: 'move',
+            kind,
+            id,
+            start: { x: worldPos.x, y: worldPos.y },
+            origin: { ...obj },
+            before: getSceneSnapshot(),
+            pointerId: event.pointerId
+          };
+          viewport.setPointerCapture(event.pointerId);
+          event.preventDefault();
+          return;
+        }
+        state.dragging = {
+          type: 'resize',
+          kind,
+          id,
+          handle: target.dataset.handle,
+          start: { x: worldPos.x, y: worldPos.y },
+          origin: { ...obj },
+          boardStart: { ...state.board },
+          slotSnapshot: kind === 'board' && state.mode === 'workflow'
+            ? state.workflowSlots.map((slot) => ({ ...slot }))
+            : null,
+          before: getSceneSnapshot(),
+          pointerId: event.pointerId
+        };
+        viewport.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        return;
+      }
+
+      if(target?.dataset.kind === 'freeItem'){
+        const id = target.dataset.id;
+        const item = state.freeItems.find((it) => it.id === id);
+        if(!item) return;
+        setSelected({ kind: 'freeItem', id });
+        if(item.locked) return;
+        state.dragging = {
+          type: 'move',
+          kind: 'freeItem',
+          id,
+          start: { x: worldPos.x, y: worldPos.y },
+          origin: { x: item.x, y: item.y, w: item.w, h: item.h },
+          before: getSceneSnapshot(),
+          pointerId: event.pointerId
+        };
+        viewport.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        return;
+      }
+
+      if(target?.dataset.kind === 'slot'){
+        const id = target.dataset.id;
+        const slot = state.workflowSlots.find((it) => it.id === id);
+        if(!slot) return;
+        setSelected({ kind: 'slot', id });
+        if(slot.locked) return;
+        state.dragging = {
+          type: 'move',
+          kind: 'slot',
+          id,
+          start: { x: worldPos.x, y: worldPos.y },
+          origin: { x: slot.x, y: slot.y, w: slot.w, h: slot.h, ox: slot.ox || 0, oy: slot.oy || 0 },
+          before: getSceneSnapshot(),
+          pointerId: event.pointerId
+        };
+        viewport.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        return;
+      }
+
+      if(target?.dataset.kind === 'board'){
+        setSelected({ kind: 'board' });
+        if(state.board.locked) return;
+        state.dragging = {
+          type: 'move',
+          kind: 'board',
+          start: { x: worldPos.x, y: worldPos.y },
+          origin: { x: state.board.x, y: state.board.y },
+          before: getSceneSnapshot(),
+          pointerId: event.pointerId
+        };
+        viewport.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        return;
+      }
+
+      state.dragging = {
+        type: 'pan',
+        start: { x: event.clientX, y: event.clientY },
+        origin: { x: state.camera.x, y: state.camera.y },
+        pointerId: event.pointerId
+      };
+      viewport.setPointerCapture(event.pointerId);
+    }
+
+    function updateInteraction(event){
+      const drag = state.dragging;
+      if(!drag || drag.pointerId !== event.pointerId) return;
+      const worldPos = screenToWorld(event.clientX, event.clientY);
+      if(drag.type === 'pan'){
+        const dx = (event.clientX - drag.start.x) / state.camera.zoom;
+        const dy = (event.clientY - drag.start.y) / state.camera.zoom;
+        state.camera.x = drag.origin.x + dx;
+        state.camera.y = drag.origin.y + dy;
+        scheduleRender();
+        return;
+      }
+
+      const dx = worldPos.x - drag.start.x;
+      const dy = worldPos.y - drag.start.y;
+      if(drag.type === 'move' && drag.kind === 'freeItem'){
+        const item = state.freeItems.find((it) => it.id === drag.id);
+        if(!item || item.locked) return;
+        item.x = round(drag.origin.x + dx);
+        item.y = round(drag.origin.y + dy);
+        scheduleRender();
+        return;
+      }
+
+      if(drag.type === 'move' && drag.kind === 'board'){
+        if(state.board.locked) return;
+        state.board.x = round(drag.origin.x + dx);
+        state.board.y = round(drag.origin.y + dy);
+        scheduleRender();
+        return;
+      }
+
+      if(drag.type === 'move' && drag.kind === 'slot'){
+        const slot = state.workflowSlots.find((it) => it.id === drag.id);
+        if(!slot || slot.locked) return;
+        slot.x = round(drag.origin.x + dx);
+        slot.y = round(drag.origin.y + dy);
+        scheduleRender();
+        return;
+      }
+
+      if(drag.type === 'resize'){
+        if(drag.kind === 'board'){
+          const board = state.board;
+          if(board.locked) return;
+          const start = drag.start;
+          const minSize = 50;
+          let x = drag.boardStart.x;
+          let y = drag.boardStart.y;
+          let w = drag.boardStart.w;
+          let h = drag.boardStart.h;
+          const deltaX = worldPos.x - start.x;
+          const deltaY = worldPos.y - start.y;
+          const aspect = state.board.orientation === 'portrait'
+            ? 1 / ratioValue(state.board.ratio)
+            : ratioValue(state.board.ratio);
+          if(state.board.lockedAspect){
+            const widthCandidate = drag.handle.includes('w')
+              ? Math.max(minSize, drag.boardStart.w - deltaX)
+              : Math.max(minSize, drag.boardStart.w + deltaX);
+            const heightCandidate = drag.handle.includes('n')
+              ? Math.max(minSize, drag.boardStart.h - deltaY)
+              : Math.max(minSize, drag.boardStart.h + deltaY);
+            const preferWidth = drag.handle.includes('e') || drag.handle.includes('w') || Math.abs(deltaX) >= Math.abs(deltaY);
+            if(preferWidth){
+              w = widthCandidate;
+              h = Math.max(minSize, w / aspect);
+            }else{
+              h = heightCandidate;
+              w = Math.max(minSize, h * aspect);
+            }
+            if(drag.handle.includes('w')) x = drag.boardStart.x + (drag.boardStart.w - w);
+            if(drag.handle.includes('n')) y = drag.boardStart.y + (drag.boardStart.h - h);
+          }else{
+            if(drag.handle.includes('e')) w = Math.max(minSize, drag.boardStart.w + deltaX);
+            if(drag.handle.includes('s')) h = Math.max(minSize, drag.boardStart.h + deltaY);
+            if(drag.handle.includes('w')){
+              const nextW = Math.max(minSize, drag.boardStart.w - deltaX);
+              x = drag.boardStart.x + (drag.boardStart.w - nextW);
+              w = nextW;
+            }
+            if(drag.handle.includes('n')){
+              const nextH = Math.max(minSize, drag.boardStart.h - deltaY);
+              y = drag.boardStart.y + (drag.boardStart.h - nextH);
+              h = nextH;
+            }
+          }
+          board.x = round(x);
+          board.y = round(y);
+          board.w = round(w);
+          board.h = round(h);
+          board.sizeScale = clamp((Math.max(board.w, board.h) / 1240) * 100, 10, 800);
+          if(state.mode === 'workflow' && state.workflowSlots.length){
+            const sx = board.w / drag.boardStart.w;
+            const sy = board.h / drag.boardStart.h;
+            const snapshot = drag.slotSnapshot || [];
+            state.workflowSlots.forEach((slot, index) => {
+              const base = snapshot[index];
+              if(!base) return;
+              slot.x = round(base.x * sx);
+              slot.y = round(base.y * sy);
+              slot.w = round(base.w * sx);
+              slot.h = round(base.h * sy);
+              slot.ox = round((base.ox || 0) * sx);
+              slot.oy = round((base.oy || 0) * sy);
+            });
+          }
+          syncBoardInputs();
+          savePreferences();
+          scheduleRender();
+          return;
+        }
+
+        if(drag.kind === 'freeItem'){
+          const item = state.freeItems.find((it) => it.id === drag.id);
+          if(!item || item.locked) return;
+          const minSize = 40;
+          let { x, y, w, h } = drag.origin;
+          const deltaX = worldPos.x - drag.start.x;
+          const deltaY = worldPos.y - drag.start.y;
+          if(item.aspectLocked !== false){
+            const aspect = drag.origin.w / drag.origin.h;
+            const widthCandidate = drag.handle.includes('w')
+              ? Math.max(minSize, drag.origin.w - deltaX)
+              : Math.max(minSize, drag.origin.w + deltaX);
+            const heightCandidate = drag.handle.includes('n')
+              ? Math.max(minSize, drag.origin.h - deltaY)
+              : Math.max(minSize, drag.origin.h + deltaY);
+            const horizontal = drag.handle.includes('e') || drag.handle.includes('w');
+            const vertical = drag.handle.includes('n') || drag.handle.includes('s');
+            const preferWidth = horizontal && (!vertical || Math.abs(deltaX) >= Math.abs(deltaY));
+            if(preferWidth){
+              w = widthCandidate;
+              h = Math.max(minSize, w / aspect);
+            }else{
+              h = heightCandidate;
+              w = Math.max(minSize, h * aspect);
+            }
+            if(drag.handle.includes('w')) x = drag.origin.x + (drag.origin.w - w);
+            if(drag.handle.includes('n')) y = drag.origin.y + (drag.origin.h - h);
+          }else{
+            if(drag.handle.includes('e')) w = Math.max(minSize, drag.origin.w + deltaX);
+            if(drag.handle.includes('s')) h = Math.max(minSize, drag.origin.h + deltaY);
+            if(drag.handle.includes('w')){
+              const nextW = Math.max(minSize, drag.origin.w - deltaX);
+              x = drag.origin.x + (drag.origin.w - nextW);
+              w = nextW;
+            }
+            if(drag.handle.includes('n')){
+              const nextH = Math.max(minSize, drag.origin.h - deltaY);
+              y = drag.origin.y + (drag.origin.h - nextH);
+              h = nextH;
+            }
+          }
+          item.x = round(x);
+          item.y = round(y);
+          item.w = round(w);
+          item.h = round(h);
+          if(item.baseW && item.baseH){
+            item.scale = round((item.w / item.baseW) * 100);
+          }
+          scheduleRender();
+          return;
+        }
+
+        if(drag.kind === 'slot'){
+          const slot = state.workflowSlots.find((it) => it.id === drag.id);
+          if(!slot || slot.locked) return;
+          const minSize = 40;
+          let { x, y, w, h } = drag.origin;
+          const deltaX = worldPos.x - drag.start.x;
+          const deltaY = worldPos.y - drag.start.y;
+          if(drag.handle.includes('e')) w = Math.max(minSize, drag.origin.w + deltaX);
+          if(drag.handle.includes('s')) h = Math.max(minSize, drag.origin.h + deltaY);
+          if(drag.handle.includes('w')){
+            const nextW = Math.max(minSize, drag.origin.w - deltaX);
+            x = drag.origin.x + (drag.origin.w - nextW);
+            w = nextW;
+          }
+          if(drag.handle.includes('n')){
+            const nextH = Math.max(minSize, drag.origin.h - deltaY);
+            y = drag.origin.y + (drag.origin.h - nextH);
+            h = nextH;
+          }
+          slot.x = round(x);
+          slot.y = round(y);
+          slot.w = round(w);
+          slot.h = round(h);
+          scheduleRender();
+          return;
+        }
+      }
+    }
+
+    function endInteraction(event){
+      const drag = state.dragging;
+      if(!drag || drag.pointerId !== event.pointerId) return;
+      state.dragging = null;
+      if(drag.type !== 'pan') rememberCompleted(drag.before, drag.type);
+      scheduleRender();
+    }
+
+    function zoomAt(clientX, clientY, delta){
+      const rect = viewport.getBoundingClientRect();
+      const sx = clientX - rect.left;
+      const sy = clientY - rect.top;
+      const before = {
+        x: sx / state.camera.zoom - state.camera.x,
+        y: sy / state.camera.zoom - state.camera.y
+      };
+      const nextZoom = clamp(state.camera.zoom * (delta < 0 ? 1.08 : 0.92), 0.08, 12);
+      state.camera.zoom = nextZoom;
+      state.camera.x = sx / nextZoom - before.x;
+      state.camera.y = sy / nextZoom - before.y;
+      scheduleRender();
+    }
+
+    function clearScene(){
+      if(!confirm('确定要清空当前场景吗？素材不会被删除，但画布上的排布会重置。')) return;
+      remember('clear-scene');
+      state.lastScene = getSceneSnapshot();
+      state.freeItems = [];
+      state.workflowSlots = buildTemplate(state.workflowTemplate, state.board.w, state.board.h);
+      state.selected = null;
+      scheduleRender();
+    }
+
+    function restoreLastScene(){
+      if(!state.lastScene){
+        alert('当前没有可恢复的场景。');
+        return;
+      }
+      restoreSceneSnapshot(state.lastScene);
+    }
+
+    function autoFillAndFit(){
+      autoFillSlots();
+      fitBoardToViewport();
+    }
+
+    function renderStateInputs(){
+      $('#gridSize').value = state.gridSize;
+      $('#boardX').value = round(state.board.x);
+      $('#boardY').value = round(state.board.y);
+      $('#boardRatio').value = state.board.ratio;
+      $('#boardOrientation').value = state.board.orientation;
+      $('#boardScale').value = state.board.sizeScale;
+      $('#workflowW').value = round(state.board.w);
+      $('#workflowH').value = round(state.board.h);
+    }
+
+    viewport.addEventListener('pointerdown', beginInteraction);
+    viewport.addEventListener('pointermove', updateInteraction);
+    viewport.addEventListener('pointerup', endInteraction);
+    viewport.addEventListener('pointercancel', endInteraction);
+    viewport.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      zoomAt(event.clientX, event.clientY, event.deltaY);
+    }, { passive: false });
+
+    viewport.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+    viewport.addEventListener('drop', (e) => {
+      e.preventDefault();
+      state.assetDragActive = false;
+      state.recentAssetDrag = Date.now();
+      if(e.dataTransfer.files && e.dataTransfer.files.length){
+        loadFiles(e.dataTransfer.files).then((added) => {
+          added.forEach((asset, index) => {
+            placeFreeItem(asset, {
+              x: getBoardCenter().x + index * 28,
+              y: getBoardCenter().y + index * 28
+            });
+          });
+        });
+        return;
+      }
+      const assetId = e.dataTransfer.getData('application/x-yv01-asset') || e.dataTransfer.getData('text/plain');
+      if(!assetId) return;
+      const now = Date.now();
+      if(state.lastAssetDrop?.assetId === assetId && now - state.lastAssetDrop.time < 700) return;
+      state.lastAssetDrop = { assetId, time: now };
+      const asset = getAssetById(assetId);
+      if(!asset) return;
+      const worldPos = screenToWorld(e.clientX, e.clientY);
+      const targetSlot = e.target.closest('[data-kind="slot"]');
+      if(targetSlot){
+        assignToSlot(targetSlot.dataset.id, asset.id);
+        return;
+      }
+      if(state.mode === 'free' || !targetSlot){
+        placeFreeItem(asset, worldPos);
+      }
+    });
+
+    $('#uploadBtn').addEventListener('click', () => fileInput.click());
+    document.addEventListener('click', (e) => {
+      const toggle = e.target.closest('#shortcutTopToggle');
+      if(!toggle) return;
+      const collapsed = shortcutPanelSection.classList.toggle('collapsed');
+      toggle.title = collapsed ? '展开快捷键' : '收起快捷键';
+      toggle.classList.toggle('active', !collapsed);
+    });
+
+    helpToggle.addEventListener('click', () => {
+      const collapsed = helpCard.classList.toggle('collapsed');
+      helpToggle.textContent = collapsed ? '?' : '×';
+      helpToggle.setAttribute('aria-expanded', String(!collapsed));
+      helpToggle.title = collapsed ? '展开操作介绍' : '收起操作介绍';
+    });
+
+    fileInput.addEventListener('change', async () => {
+      await loadFiles(fileInput.files);
+      fileInput.value = '';
+    });
+
+    $('#modeToggle').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-mode]');
+      if(!btn) return;
+      setMode(btn.dataset.mode);
+    });
+
+    $('#qualityGroup').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-quality]');
+      if(!btn) return;
+      state.exportQuality = btn.dataset.quality;
+      savePreferences();
+      render();
+    });
+
+    $('#transparentBtn').addEventListener('click', () => {
+      state.transparentExport = !state.transparentExport;
+      savePreferences();
+      render();
+    });
+
+    $('#fitBoardBtn').addEventListener('click', fitBoardToViewport);
+    $('#centerBoardBtn').addEventListener('click', centerBoard);
+    $('#fitAllBtn').addEventListener('click', fitBoardToViewport);
+    $('#exportBtn').addEventListener('click', exportComposition);
+    $('#clearBtn').addEventListener('click', clearScene);
+    $('#restoreBtn').addEventListener('click', restoreLastScene);
+    $('#autoFillBtn').addEventListener('click', autoFillSlots);
+    $('#shuffleBtn').addEventListener('click', () => {
+      if(!state.workflowSlots.length || !state.assets.length) return;
+      remember('shuffle-slots');
+      const order = [...state.assets].sort(() => Math.random() - 0.5);
+      state.workflowSlots.forEach((slot, index) => {
+        slot.assetId = order[index % order.length].id;
+      });
+      scheduleRender();
+    });
+    $('#alignAllBtn').addEventListener('click', alignAllSlots);
+    $('#addSlotBtn').addEventListener('click', addWorkflowSlot);
+    $('#removeSlotBtn').addEventListener('click', removeSelectedWorkflowSlot);
+
+    $('#snapGridBtn').addEventListener('click', () => {
+      state.snapGrid = !state.snapGrid;
+      savePreferences();
+      render();
+    });
+
+    $('#gridSize').addEventListener('input', (e) => {
+      state.gridSize = sanitizeNumber(e.target.value, 32);
+      savePreferences();
+      scheduleRender();
+    });
+
+    $('#boardX').addEventListener('input', (e) => {
+      if(!e.target.dataset.historyStarted){
+        remember('board-x');
+        e.target.dataset.historyStarted = '1';
+      }
+      state.board.x = sanitizeNumber(e.target.value, state.board.x);
+      scheduleRender();
+    });
+    $('#boardY').addEventListener('input', (e) => {
+      if(!e.target.dataset.historyStarted){
+        remember('board-y');
+        e.target.dataset.historyStarted = '1';
+      }
+      state.board.y = sanitizeNumber(e.target.value, state.board.y);
+      scheduleRender();
+    });
+    $('#boardRatio').addEventListener('change', (e) => setBoardRatio(e.target.value));
+    $('#boardOrientation').addEventListener('change', (e) => setBoardOrientation(e.target.value));
+    $('#boardScale').addEventListener('input', (e) => setBoardScale(sanitizeNumber(e.target.value, 100)));
+    $('#lockBoardBtn').addEventListener('click', toggleBoardLock);
+
+    $('#templateSelect').addEventListener('change', (e) => {
+      rebuildWorkflowTemplate(e.target.value);
+      setMode('workflow');
+    });
+
+    $('#inspector').addEventListener('input', (e) => {
+      const field = e.target.closest('[data-prop]');
+      if(!field || !state.selected) return;
+      const prop = field.dataset.prop;
+      const value = sanitizeNumber(field.value, 0);
+      const sel = getSelectedObject();
+      if(!sel) return;
+      if(!field.dataset.historyStarted){
+        remember(`edit-${prop}`);
+        field.dataset.historyStarted = '1';
+      }
+      if(state.selected.kind === 'freeItem' && (prop === 'w' || prop === 'h')){
+        sel.baseW = sel.baseW || sel.w;
+        sel.baseH = sel.baseH || sel.h;
+        if(sel.baseW && sel.baseH){
+          const nextScale = prop === 'w' ? (value / sel.baseW) * 100 : (value / sel.baseH) * 100;
+          setSelectedScale(nextScale);
+          return;
+        }
+      }
+      if(prop === 'scale'){
+        setSelectedScale(value);
+        return;
+      }
+      sel[prop] = value;
+      scheduleRender();
+    });
+
+    $('#inspector').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-act]');
+      if(!btn || !state.selected) return;
+      const act = btn.dataset.act;
+      if(act === 'delete') deleteSelected();
+      if(act === 'lock') toggleObjectLock();
+      if(act === 'align') alignSelected();
+      if(act === 'duplicate' && state.selected.kind === 'freeItem'){
+        const item = getSelectedObject();
+        if(item) duplicateFreeItem(item);
+      }
+      if(act === 'duplicate' && state.selected.kind === 'slot'){
+        const slot = getSelectedObject();
+        if(slot) duplicateWorkflowSlot(slot);
+      }
+      if(act === 'layer-up') moveSelectedLayer(1);
+      if(act === 'layer-down') moveSelectedLayer(-1);
+      if(act === 'bring-front') bringForward();
+      if(act === 'send-back') sendBackward();
+      if(act === 'toggle-aspect'){
+        const item = getSelectedObject();
+        if(item && state.selected?.kind === 'freeItem'){
+          remember('toggle-aspect');
+          item.aspectLocked = item.aspectLocked === false;
+          scheduleRender();
+        }
+      }
+      if(act === 'toggle-crop'){
+        const item = getSelectedObject();
+        if(item && state.selected?.kind === 'freeItem'){
+          remember('toggle-crop');
+          item.cropEnabled = !item.cropEnabled;
+          item.cropScale = item.cropScale || 100;
+          item.cropOx = item.cropOx || 0;
+          item.cropOy = item.cropOy || 0;
+          scheduleRender();
+        }
+      }
+      if(act === 'reset-crop'){
+        const item = getSelectedObject();
+        if(item && state.selected?.kind === 'freeItem'){
+          remember('reset-crop');
+          item.cropScale = 100;
+          item.cropOx = 0;
+          item.cropOy = 0;
+          scheduleRender();
+        }
+      }
+      if(act === 'clear-slot') clearWorkflowSlot(state.selected.id);
+      if(act === 'fill-slot') fitSelectedAssetIntoSlot();
+      if(act === 'toggle-board-lock') toggleBoardLock();
+      if(act === 'board-fit') fitBoardToViewport();
+      if(act === 'board-focus') focusSelection();
+    });
+
+    $('#shortcutPanel').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-shortcut-edit]');
+      if(!btn) return;
+      state.shortcutEdit = btn.dataset.shortcutEdit;
+      render();
+    });
+
+    $('#assetTray').addEventListener('click', (e) => {
+      const removeBtn = e.target.closest('[data-asset-remove]');
+      if(removeBtn){
+        e.stopPropagation();
+        removeAsset(removeBtn.dataset.assetRemove);
+        return;
+      }
+      if(state.assetDragActive || Date.now() - state.recentAssetDrag < 900) return;
+      const card = e.target.closest('.asset-card');
+      if(!card) return;
+      const asset = getAssetById(card.dataset.assetId);
+      if(!asset) return;
+      if(state.mode === 'workflow' && state.selected?.kind === 'slot'){
+        assignToSlot(state.selected.id, asset.id);
+      }
+    });
+
+    $('#assetTray').addEventListener('dragstart', (e) => {
+      const card = e.target.closest('.asset-card');
+      if(!card) return;
+      if(e.target.closest('[data-asset-remove]')){
+        e.preventDefault();
+        return;
+      }
+      state.assetDragActive = true;
+      e.dataTransfer.setData('application/x-yv01-asset', card.dataset.assetId);
+      e.dataTransfer.setData('text/plain', card.dataset.assetId);
+      e.dataTransfer.effectAllowed = 'copy';
+      state.recentAssetDrag = Date.now();
+    });
+    $('#assetTray').addEventListener('dragend', () => {
+      state.assetDragActive = false;
+      state.recentAssetDrag = Date.now();
+    });
+
+    assetPanel.addEventListener('dragenter', (e) => {
+      if(e.dataTransfer?.types?.includes('Files')){
+        e.preventDefault();
+        assetPanel.classList.add('drag-over');
+      }
+    });
+    assetPanel.addEventListener('dragover', (e) => {
+      if(e.dataTransfer?.types?.includes('Files')){
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        assetPanel.classList.add('drag-over');
+      }
+    });
+    assetPanel.addEventListener('dragleave', (e) => {
+      if(!assetPanel.contains(e.relatedTarget)){
+        assetPanel.classList.remove('drag-over');
+      }
+    });
+    assetPanel.addEventListener('drop', async (e) => {
+      if(!e.dataTransfer?.files?.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      assetPanel.classList.remove('drag-over');
+      await loadFiles(e.dataTransfer.files);
+    });
+
+    $('#exportBg').addEventListener('input', () => {
+      state.transparentExport = false;
+      $('#transparentBtn').classList.remove('active');
+      savePreferences();
+    });
+
+    window.addEventListener('paste', async (event) => {
+      const items = Array.from(event.clipboardData?.items || []);
+      const imageFiles = items
+        .filter((item) => item.type.startsWith('image/'))
+        .map((item) => item.getAsFile())
+        .filter(Boolean);
+      if(!imageFiles.length) return;
+      event.preventDefault();
+      const added = await loadFiles(imageFiles);
+      added.forEach((asset, index) => {
+        placeFreeItem(asset, {
+          x: getBoardCenter().x + index * 28,
+          y: getBoardCenter().y + index * 28
+        });
+      });
+    });
+
+    window.addEventListener('keydown', (e) => {
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      const editingText = activeTag === 'input' || activeTag === 'textarea' || document.activeElement?.isContentEditable;
+      if(state.shortcutEdit){
+        const combo = captureShortcut(e);
+        if(e.key === 'Escape'){
+          state.shortcutEdit = null;
+          render();
+          return;
+        }
+        if(combo){
+          state.shortcuts[state.shortcutEdit] = combo;
+          state.shortcutEdit = null;
+          savePreferences();
+          render();
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if(editingText) return;
+
+      for(const action of shortcutActions){
+        const combo = state.shortcuts[action.id];
+        if(combo && matchShortcut(e, combo)){
+          if(action.id === 'paste' && !state.clipboardItem) break;
+          e.preventDefault();
+          runShortcutAction(action.id);
+          return;
+        }
+      }
+
+      if(e.key === 'Escape'){
+        state.dragging = null;
+        setSelected(null);
+      }
+      if(!state.selected) return;
+      const step = e.shiftKey ? 20 : 4;
+      const sel = getSelectedObject();
+      if(!sel) return;
+      if(sel.locked) return;
+      if(e.key === 'Delete' || e.key === 'Backspace'){
+        deleteSelected();
+        return;
+      }
+      if(e.key === 'ArrowLeft'){ e.preventDefault(); sel.x -= step; scheduleRender(); }
+      if(e.key === 'ArrowRight'){ e.preventDefault(); sel.x += step; scheduleRender(); }
+      if(e.key === 'ArrowUp'){ e.preventDefault(); sel.y -= step; scheduleRender(); }
+      if(e.key === 'ArrowDown'){ e.preventDefault(); sel.y += step; scheduleRender(); }
+    });
+
+    window.addEventListener('resize', () => {
+      if(state.mode === 'free'){
+        // Keep the export frame visible when the viewport size changes.
+        scheduleRender();
+      }
+    });
+
+    function init(){
+      loadPreferences();
+      computeBoardSize();
+      state.workflowSlots = buildTemplate(state.workflowTemplate, state.board.w, state.board.h);
+      if(!state.lastScene){
+        state.lastScene = null;
+      }
+      setupDockedLayout();
+      initPanelSystem();
+      syncBoardInputs();
+      renderStateInputs();
+      fitBoardToViewport();
+      render();
+      savePreferences();
+    }
+
+    init();
+  </script>
+</body>
+</html>
+
+
+
+
+
+
