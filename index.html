@@ -1328,10 +1328,10 @@
       scheduleRender();
     }
 
-    function setSelectedScale(percent){
+    function setSelectedScale(percent, options = {}){
       const sel = getSelectedObject();
       if(!sel) return;
-      remember('scale');
+      if(options.history !== false) remember('scale');
       const next = Math.max(1, round(percent));
       if(state.selected?.kind === 'freeItem'){
         sel.baseW = sel.baseW || sel.w;
@@ -1345,7 +1345,7 @@
       }else if(state.selected?.kind === 'slot'){
         sel.scale = next;
       }
-      scheduleRender();
+      options.live ? renderWorld() : scheduleRender();
     }
 
     function cloneAsset(asset){
@@ -2890,6 +2890,22 @@
       e.preventDefault();
       state.assetDragActive = false;
       state.recentAssetDrag = Date.now();
+      const assetId = e.dataTransfer.getData('application/x-yv01-asset') || e.dataTransfer.getData('text/plain');
+      if(assetId){
+        const now = Date.now();
+        if(state.lastAssetDrop?.assetId === assetId && now - state.lastAssetDrop.time < 700) return;
+        state.lastAssetDrop = { assetId, time: now };
+        const asset = getAssetById(assetId);
+        if(!asset) return;
+        const worldPos = screenToWorld(e.clientX, e.clientY);
+        const targetSlot = e.target.closest('[data-kind="slot"]');
+        if(targetSlot){
+          assignToSlot(targetSlot.dataset.id, asset.id);
+          return;
+        }
+        placeFreeItem(asset, worldPos);
+        return;
+      }
       if(e.dataTransfer.files && e.dataTransfer.files.length){
         loadFiles(e.dataTransfer.files).then((added) => {
           added.forEach((asset, index) => {
@@ -2900,22 +2916,6 @@
           });
         });
         return;
-      }
-      const assetId = e.dataTransfer.getData('application/x-yv01-asset') || e.dataTransfer.getData('text/plain');
-      if(!assetId) return;
-      const now = Date.now();
-      if(state.lastAssetDrop?.assetId === assetId && now - state.lastAssetDrop.time < 700) return;
-      state.lastAssetDrop = { assetId, time: now };
-      const asset = getAssetById(assetId);
-      if(!asset) return;
-      const worldPos = screenToWorld(e.clientX, e.clientY);
-      const targetSlot = e.target.closest('[data-kind="slot"]');
-      if(targetSlot){
-        assignToSlot(targetSlot.dataset.id, asset.id);
-        return;
-      }
-      if(state.mode === 'free' || !targetSlot){
-        placeFreeItem(asset, worldPos);
       }
     });
 
@@ -3039,11 +3039,15 @@
         }
       }
       if(prop === 'scale'){
-        setSelectedScale(value);
+        setSelectedScale(value, { history: false, live: field.type === 'range' });
         return;
       }
       sel[prop] = value;
-      scheduleRender();
+      if(field.type === 'range'){
+        renderWorld();
+      }else{
+        scheduleRender();
+      }
     });
 
     $('#inspector').addEventListener('click', (e) => {
@@ -3162,6 +3166,12 @@
       }
     });
     assetPanel.addEventListener('drop', async (e) => {
+      if(e.dataTransfer?.getData('application/x-yv01-asset') || e.dataTransfer?.getData('text/plain')){
+        e.preventDefault();
+        e.stopPropagation();
+        assetPanel.classList.remove('drag-over');
+        return;
+      }
       if(!e.dataTransfer?.files?.length) return;
       e.preventDefault();
       e.stopPropagation();
