@@ -554,6 +554,15 @@
       border-color:rgba(255,143,122,.45);
       color:#ffd3c8;
     }
+    .asset-check{
+      position:absolute;
+      left:8px;
+      top:8px;
+      width:18px;
+      height:18px;
+      accent-color:#63d3ff;
+      z-index:3;
+    }
     .asset-thumb{
       position:relative;
       width:100%;
@@ -583,6 +592,23 @@
       font-size:11px;
       color:var(--muted);
     }
+    .text-item{
+      min-width:40px;
+      min-height:28px;
+      padding:8px 10px;
+      background:rgba(255,255,255,.06);
+      border:1px dashed rgba(255,255,255,.22);
+      white-space:pre-wrap;
+      overflow:hidden;
+      user-select:none;
+    }
+    .text-item .text-content{
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      line-height:1.25;
+      word-break:break-word;
+    }
     .asset-drop-hint{
       grid-column:1/-1;
       display:none;
@@ -608,6 +634,7 @@
     }
     .control input[type="number"],
     .control input[type="text"],
+    .control textarea,
     .control select{
       width:100%;
       padding:10px 12px;
@@ -617,6 +644,7 @@
       color:var(--text);
       outline:none;
     }
+    .control textarea{resize:vertical;min-height:66px;font:inherit;}
     .control select option{
       color:#eaf2ff;
       background:#122136;
@@ -818,6 +846,13 @@
         <div class="stack">
           <button class="btn" id="uploadBtn" type="button">上传多张图片</button>
           <input id="fileInput" type="file" accept="image/*" multiple hidden />
+          <input id="backupInput" type="file" accept="application/json,.json" hidden />
+          <div class="row wrap">
+            <button class="mini" id="selectAllAssetsBtn" type="button">全选素材</button>
+            <button class="mini" id="deleteSelectedAssetsBtn" type="button">批量删除</button>
+            <button class="mini" id="backupProjectBtn" type="button">备份项目</button>
+            <button class="mini" id="restoreProjectBtn" type="button">恢复项目</button>
+          </div>
           <div class="asset-tray" id="assetTray"></div>
         </div>
       </section>
@@ -869,6 +904,7 @@
             <button class="mini" id="fitBoardBtn" type="button">适配视图</button>
             <button class="mini" id="centerBoardBtn" type="button">居中导出框</button>
             <button class="mini" id="lockBoardBtn" type="button">锁定导出框</button>
+            <button class="mini" id="addTextBtn" type="button">添加文字</button>
           </div>
           <div class="control">
             <label>网格尺寸</label>
@@ -1113,6 +1149,8 @@
       workflowTemplate: 'two-two',
       workflowSlots: [],
       workflowPresets: [],
+      textItems: [],
+      selectedAssetIds: [],
       selected: null,
       camera: { x: 0, y: 0, zoom: 1 },
       dragging: null,
@@ -1130,7 +1168,9 @@
       undoStack: [],
       redoStack: [],
       assetTraySignature: '',
-      renderQueued: false
+      renderQueued: false,
+      persistTimer: null,
+      workspaceLoaded: false
     };
 
     function safeLocalStorage(method, key, value){
@@ -1139,6 +1179,203 @@
         if(method === 'set') localStorage.setItem(key, value);
       }catch(_err){}
       return null;
+    }
+
+    const LOCAL_DB_NAME = 'yv04-collage-workspace';
+    const LOCAL_DB_VERSION = 1;
+
+    function openLocalDb(){
+      return new Promise((resolve, reject) => {
+        if(!('indexedDB' in window)){ reject(new Error('IndexedDB unavailable')); return; }
+        const request = indexedDB.open(LOCAL_DB_NAME, LOCAL_DB_VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if(!db.objectStoreNames.contains('assets')) db.createObjectStore('assets', { keyPath: 'id' });
+          if(!db.objectStoreNames.contains('scene')) db.createObjectStore('scene', { keyPath: 'id' });
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function idbRequest(request){
+      return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    function loadImage(url){
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = url;
+      });
+    }
+
+    function sceneForStorage(){
+      return {
+        id: 'current',
+        mode: state.mode,
+        exportQuality: state.exportQuality,
+        transparentExport: state.transparentExport,
+        board: { ...state.board },
+        gridSize: state.gridSize,
+        snapGrid: state.snapGrid,
+        workflowTemplate: state.workflowTemplate,
+        workflowSlots: state.workflowSlots.map((slot) => ({ ...slot })),
+        freeItems: state.freeItems.map((item) => ({ ...item })),
+        textItems: state.textItems.map((item) => ({ ...item })),
+        selected: state.selected ? { ...state.selected } : null
+      };
+    }
+
+    async function loadLocalWorkspace(){
+      try{
+        const db = await openLocalDb();
+        const records = await idbRequest(db.transaction('assets', 'readonly').objectStore('assets').getAll());
+        const loaded = [];
+        for(const record of records){
+          if(!record.blob) continue;
+          const url = URL.createObjectURL(record.blob);
+          const img = await loadImage(url);
+          if(!img){ URL.revokeObjectURL(url); continue; }
+          loaded.push({ ...record, url, img });
+        }
+        const scene = await idbRequest(db.transaction('scene', 'readonly').objectStore('scene').get('current'));
+        state.assets = loaded;
+        if(scene){
+          state.workspaceLoaded = true;
+          state.mode = scene.mode || state.mode;
+          state.exportQuality = scene.exportQuality || state.exportQuality;
+          state.transparentExport = !!scene.transparentExport;
+          state.board = { ...state.board, ...(scene.board || {}) };
+          state.gridSize = scene.gridSize ?? state.gridSize;
+          state.snapGrid = scene.snapGrid ?? state.snapGrid;
+          state.workflowTemplate = scene.workflowTemplate || state.workflowTemplate;
+          state.workflowSlots = (scene.workflowSlots || []).map((slot) => ({ ...slot }));
+          state.freeItems = (scene.freeItems || []).map((item) => ({ ...item }));
+          state.textItems = (scene.textItems || []).map((item) => ({ ...item }));
+          state.selected = scene.selected ? { ...scene.selected } : null;
+        }
+      }catch(_err){
+        // The app remains usable with the existing in-memory fallback.
+      }
+    }
+
+    async function persistLocalWorkspace(){
+      try{
+        const db = await openLocalDb();
+        const tx = db.transaction(['assets', 'scene'], 'readwrite');
+        const assetStore = tx.objectStore('assets');
+        assetStore.clear();
+        state.assets.forEach((asset) => {
+          if(asset.blob) assetStore.put({
+            id: asset.id,
+            name: asset.name,
+            fileName: asset.fileName,
+            fingerprint: asset.fingerprint,
+            width: asset.width,
+            height: asset.height,
+            blob: asset.blob
+          });
+        });
+        tx.objectStore('scene').put(sceneForStorage());
+      }catch(_err){}
+    }
+
+    function queueLocalPersistence(){
+      clearTimeout(state.persistTimer);
+      state.persistTimer = setTimeout(persistLocalWorkspace, 280);
+    }
+
+    function blobToDataUrl(blob){
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function backupProject(){
+      const assets = [];
+      for(const asset of state.assets){
+        let blob = asset.blob;
+        if(!blob && asset.url){
+          blob = await fetch(asset.url).then((response) => response.blob()).catch(() => null);
+        }
+        if(!blob) continue;
+        assets.push({
+          id: asset.id,
+          name: asset.name,
+          fileName: asset.fileName,
+          fingerprint: asset.fingerprint,
+          width: asset.width,
+          height: asset.height,
+          dataUrl: await blobToDataUrl(blob)
+        });
+      }
+      const backup = {
+        format: 'Y-v04-collage-project',
+        version: 1,
+        createdAt: new Date().toISOString(),
+        scene: sceneForStorage(),
+        presets: state.workflowPresets,
+        assets
+      };
+      const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Y-v04-project-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+    }
+
+    function dataUrlToBlob(dataUrl){
+      const [header, body] = dataUrl.split(',');
+      const mime = header.match(/data:([^;]+)/)?.[1] || 'application/octet-stream';
+      const binary = atob(body);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      return new Blob([bytes], { type: mime });
+    }
+
+    async function restoreProject(file){
+      try{
+        const backup = JSON.parse(await file.text());
+        if(backup.format !== 'Y-v04-collage-project' || !backup.scene) throw new Error('invalid backup');
+        if(!confirm('恢复项目会替换当前画布和素材，确定继续吗？')) return;
+        const restored = [];
+        for(const record of backup.assets || []){
+          const blob = dataUrlToBlob(record.dataUrl);
+          const url = URL.createObjectURL(blob);
+          const img = await loadImage(url);
+          if(img) restored.push({ ...record, blob, url, img });
+          else URL.revokeObjectURL(url);
+        }
+        state.assets = restored;
+        state.workflowPresets = Array.isArray(backup.presets) ? backup.presets : [];
+        const scene = backup.scene;
+        state.mode = scene.mode || 'free';
+        state.exportQuality = scene.exportQuality || '2k';
+        state.transparentExport = !!scene.transparentExport;
+        state.board = { ...state.board, ...(scene.board || {}) };
+        state.gridSize = scene.gridSize ?? 32;
+        state.snapGrid = scene.snapGrid ?? true;
+        state.workflowTemplate = scene.workflowTemplate || 'two-two';
+        state.workflowSlots = (scene.workflowSlots || []).map((slot) => ({ ...slot }));
+        state.freeItems = (scene.freeItems || []).map((item) => ({ ...item }));
+        state.textItems = (scene.textItems || []).map((item) => ({ ...item }));
+        state.selected = scene.selected ? { ...scene.selected } : null;
+        state.assetTraySignature = '';
+        savePreferences();
+        render();
+        queueLocalPersistence();
+        alert('项目已恢复。');
+      }catch(_err){
+        alert('备份文件无法读取，请选择本工具导出的项目备份。');
+      }
     }
 
     const viewport = $('#viewport');
@@ -1197,6 +1434,9 @@
       if(state.selected.kind === 'slot'){
         return state.workflowSlots.find((slot) => slot.id === state.selected.id) || null;
       }
+      if(state.selected.kind === 'text'){
+        return state.textItems.find((item) => item.id === state.selected.id) || null;
+      }
       if(state.selected.kind === 'board') return state.board;
       return null;
     }
@@ -1207,6 +1447,7 @@
     }
 
     function scheduleRender(){
+      queueLocalPersistence();
       if(state.renderQueued) return;
       state.renderQueued = true;
       requestAnimationFrame(() => {
@@ -1396,6 +1637,7 @@
         workflowTemplate: snapshot.workflowTemplate,
         workflowSlots: snapshot.workflowSlots,
         freeItems: snapshot.freeItems,
+        textItems: snapshot.textItems,
         assets: snapshot.assets.map((asset) => ({
           id: asset.id,
           fingerprint: asset.fingerprint,
@@ -1419,6 +1661,7 @@
         workflowTemplate: state.workflowTemplate,
         workflowSlots: state.workflowSlots.map((slot) => ({ ...slot })),
         freeItems: state.freeItems.map((item) => ({ ...item })),
+        textItems: state.textItems.map((item) => ({ ...item })),
         selected: state.selected ? { ...state.selected } : null
       };
     }
@@ -1457,6 +1700,7 @@
       state.workflowTemplate = snapshot.workflowTemplate || state.workflowTemplate;
       state.workflowSlots = (snapshot.workflowSlots || []).map((slot) => ({ ...slot }));
       state.freeItems = (snapshot.freeItems || []).map((item) => ({ ...item }));
+      state.textItems = (snapshot.textItems || []).map((item) => ({ ...item }));
       state.selected = snapshot.selected ? { ...snapshot.selected } : null;
       state.assetTraySignature = '';
       computeBoardSize();
@@ -2154,9 +2398,10 @@
         <div class="asset-drop-hint">松手后批量加入素材栏</div>
         ${state.assets.map((asset) => `
         <div class="asset-card" draggable="true" data-asset-id="${asset.id}">
+          <input class="asset-check" type="checkbox" data-asset-check="${asset.id}" ${state.selectedAssetIds.includes(asset.id) ? 'checked' : ''} aria-label="选择素材" />
           <button class="asset-remove" type="button" data-asset-remove="${asset.id}" title="删除素材" aria-label="删除素材">×</button>
           <div class="asset-thumb">
-            <img src="${asset.url}" alt="${escapeHtml(asset.name)}" />
+            <img loading="lazy" decoding="async" src="${asset.url}" alt="${escapeHtml(asset.name)}" />
           </div>
           <div class="asset-meta">
             <strong title="${escapeHtml(asset.name)}">${escapeHtml(asset.name)}</strong>
@@ -2239,6 +2484,31 @@
         return;
       }
 
+      if(state.selected.kind === 'text'){
+        selectedType.textContent = '文字图层';
+        inspector.innerHTML = `
+          <div class="control"><label>文字内容</label><textarea data-prop="text" rows="3">${escapeHtml(selected.text)}</textarea></div>
+          <div class="row">
+            <div class="control grow"><label>X</label><input type="number" data-prop="x" value="${round(selected.x)}" /></div>
+            <div class="control grow"><label>Y</label><input type="number" data-prop="y" value="${round(selected.y)}" /></div>
+          </div>
+          <div class="row">
+            <div class="control grow"><label>宽</label><input type="number" min="40" data-prop="w" value="${round(selected.w)}" /></div>
+            <div class="control grow"><label>高</label><input type="number" min="28" data-prop="h" value="${round(selected.h)}" /></div>
+          </div>
+          <div class="row">
+            <div class="control grow"><label>字号</label><input type="number" min="8" max="400" data-prop="fontSize" value="${selected.fontSize}" /></div>
+            <div class="control grow"><label>颜色</label><input type="color" data-prop="color" value="${selected.color}" /></div>
+          </div>
+          <div class="control"><label>对齐</label><select data-prop="align"><option ${selected.align === 'left' ? 'selected' : ''}>left</option><option ${selected.align === 'center' ? 'selected' : ''}>center</option><option ${selected.align === 'right' ? 'selected' : ''}>right</option></select></div>
+          <div class="row wrap">
+            <button class="mini" data-act="lock" type="button">${selected.locked ? '解锁' : '锁定'}</button>
+            <button class="mini" data-act="duplicate-text" type="button">复制</button>
+            <button class="mini" data-act="delete" type="button">删除</button>
+          </div>`;
+        return;
+      }
+
       if(state.selected.kind === 'slot'){
         selectedType.textContent = '工作流框架';
         const asset = getAssetById(selected.assetId);
@@ -2303,6 +2573,17 @@
         `);
       }
 
+      for(const item of state.textItems){
+        html.push(`
+          <div class="free-item text-item ${item.locked ? 'locked' : ''} ${state.selected?.kind === 'text' && state.selected.id === item.id ? 'selected' : ''}"
+            data-kind="text" data-id="${item.id}"
+            style="left:${item.x}px;top:${item.y}px;width:${item.w}px;height:${item.h}px;color:${escapeHtml(item.color)};font-size:${item.fontSize}px;text-align:${item.align};">
+            <div class="text-content">${escapeHtml(item.text)}</div>
+            ${renderBoardSelectionHandles('text', item.id)}
+          </div>
+        `);
+      }
+
       world.innerHTML = html.join('');
     }
 
@@ -2363,7 +2644,7 @@
     function renderBoardSelectionHandles(kind, id){
       if(!state.selected || state.selected.kind !== kind || (id && state.selected.id !== id)) return '';
       const selected = getSelectedObject();
-      if((kind === 'freeItem' || kind === 'slot') && selected?.locked) return '';
+      if((kind === 'freeItem' || kind === 'text' || kind === 'slot') && selected?.locked) return '';
       if(kind === 'board' && state.board.locked) return '';
       return `
         <div class="handles">
@@ -2371,7 +2652,7 @@
           <div class="handle ne" data-handle="ne"></div>
           <div class="handle sw" data-handle="sw"></div>
           <div class="handle se" data-handle="se"></div>
-          ${kind === 'freeItem' ? `
+          ${kind === 'freeItem' || kind === 'text' ? `
             <div class="handle n" data-handle="n"></div>
             <div class="handle e" data-handle="e"></div>
             <div class="handle s" data-handle="s"></div>
@@ -2424,7 +2705,7 @@
           added.push(existing);
           continue;
         }
-        const asset = {
+      const asset = {
           id: uid('asset'),
           name: file.name.replace(/\.[^.]+$/, ''),
           fileName: file.name,
@@ -2432,7 +2713,8 @@
           url,
           width: meta.width,
           height: meta.height,
-          img: meta.img
+          img: meta.img,
+          blob: file
         };
       state.assets.push(asset);
       added.push(asset);
@@ -2466,6 +2748,32 @@
       scheduleRender();
     }
 
+    function addTextItem(){
+      remember('add-text');
+      const center = getBoardCenter();
+      const item = {
+        id: uid('text'),
+        x: round(center.x - 180),
+        y: round(center.y - 35),
+        w: 360,
+        h: 70,
+        text: '双击编辑文字',
+        fontSize: 42,
+        color: '#ffffff',
+        align: 'center',
+        locked: false
+      };
+      state.textItems.push(item);
+      setSelected({ kind: 'text', id: item.id });
+    }
+
+    function duplicateTextItem(item){
+      remember('duplicate-text');
+      const copy = { ...item, id: uid('text'), x: item.x + 28, y: item.y + 28, locked: false };
+      state.textItems.push(copy);
+      setSelected({ kind: 'text', id: copy.id });
+    }
+
     function deleteSelected(){
       if(!state.selected) return;
       remember('delete-selected');
@@ -2475,6 +2783,8 @@
       }else if(state.selected.kind === 'slot'){
         const slot = state.workflowSlots.find((s) => s.id === state.selected.id);
         if(slot) slot.assetId = null;
+      }else if(state.selected.kind === 'text'){
+        state.textItems = state.textItems.filter((item) => item.id !== state.selected.id);
       }
       state.selected = null;
       scheduleRender();
@@ -2500,6 +2810,31 @@
           state.selected = null;
         }
       }
+      state.assetTraySignature = '';
+      state.selectedAssetIds = state.selectedAssetIds.filter((id) => id !== assetId);
+      scheduleRender();
+    }
+
+    function deleteSelectedAssets(){
+      const ids = new Set(state.selectedAssetIds);
+      if(!ids.size) return;
+      if(!confirm(`确定删除选中的 ${ids.size} 个素材吗？画布中使用这些素材的图片也会被移除。`)) return;
+      remember('remove-assets');
+      state.assets = state.assets.filter((asset) => !ids.has(asset.id));
+      state.freeItems = state.freeItems.filter((item) => !ids.has(item.assetId));
+      state.workflowSlots.forEach((slot) => {
+        if(ids.has(slot.assetId)){
+          slot.assetId = null;
+          slot.scale = 100;
+          slot.ox = 0;
+          slot.oy = 0;
+        }
+      });
+      if(state.selected?.kind === 'freeItem' || state.selected?.kind === 'slot'){
+        const selected = getSelectedObject();
+        if(!selected || ids.has(selected.assetId)) state.selected = null;
+      }
+      state.selectedAssetIds = [];
       state.assetTraySignature = '';
       scheduleRender();
     }
@@ -2643,6 +2978,26 @@
         }
       }
 
+      for(const item of state.textItems){
+        const x = (item.x - board.x) * scaleX;
+        const y = (item.y - board.y) * scaleY;
+        const w = item.w * scaleX;
+        const h = item.h * scaleY;
+        const fontSize = Math.max(8, (item.fontSize || 42) * scaleX);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+        ctx.fillStyle = item.color || '#ffffff';
+        ctx.font = `${fontSize}px sans-serif`;
+        ctx.textAlign = item.align || 'center';
+        ctx.textBaseline = 'top';
+        const lines = String(item.text || '').split(/\r?\n/);
+        const tx = item.align === 'left' ? x : item.align === 'right' ? x + w : x + w / 2;
+        lines.forEach((line, index) => ctx.fillText(line, tx, y + index * fontSize * 1.25));
+        ctx.restore();
+      }
+
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
       if(!blob){
         alert('导出失败，请重试。');
@@ -2683,11 +3038,13 @@
         if(!kindNode) return;
         const kind = kindNode.dataset.kind;
         const id = kindNode.dataset.id || null;
-        const obj = kind === 'board'
-          ? state.board
-          : kind === 'freeItem'
-            ? state.freeItems.find((item) => item.id === id)
-            : state.workflowSlots.find((slot) => slot.id === id);
+          const obj = kind === 'board'
+            ? state.board
+            : kind === 'freeItem'
+              ? state.freeItems.find((item) => item.id === id)
+              : kind === 'text'
+                ? state.textItems.find((item) => item.id === id)
+                : state.workflowSlots.find((slot) => slot.id === id);
         if(!obj) return;
         setSelected(kind === 'board' ? { kind: 'board' } : { kind, id });
         if(kind !== 'board' && obj.locked){
@@ -2735,6 +3092,26 @@
         state.dragging = {
           type: 'move',
           kind: 'freeItem',
+          id,
+          start: { x: worldPos.x, y: worldPos.y },
+          origin: { x: item.x, y: item.y, w: item.w, h: item.h },
+          before: getSceneSnapshot(),
+          pointerId: event.pointerId
+        };
+        viewport.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        return;
+      }
+
+      if(target?.dataset.kind === 'text'){
+        const id = target.dataset.id;
+        const item = state.textItems.find((it) => it.id === id);
+        if(!item) return;
+        setSelected({ kind: 'text', id });
+        if(item.locked) return;
+        state.dragging = {
+          type: 'move',
+          kind: 'text',
           id,
           start: { x: worldPos.x, y: worldPos.y },
           origin: { x: item.x, y: item.y, w: item.w, h: item.h },
@@ -2808,6 +3185,15 @@
       const dy = worldPos.y - drag.start.y;
       if(drag.type === 'move' && drag.kind === 'freeItem'){
         const item = state.freeItems.find((it) => it.id === drag.id);
+        if(!item || item.locked) return;
+        item.x = round(drag.origin.x + dx);
+        item.y = round(drag.origin.y + dy);
+        scheduleRender();
+        return;
+      }
+
+      if(drag.type === 'move' && drag.kind === 'text'){
+        const item = state.textItems.find((it) => it.id === drag.id);
         if(!item || item.locked) return;
         item.x = round(drag.origin.x + dx);
         item.y = round(drag.origin.y + dy);
@@ -2956,6 +3342,32 @@
           return;
         }
 
+        if(drag.kind === 'text'){
+          const item = state.textItems.find((it) => it.id === drag.id);
+          if(!item || item.locked) return;
+          let { x, y, w, h } = drag.origin;
+          const minW = 40;
+          const minH = 28;
+          if(drag.handle.includes('e')) w = Math.max(minW, drag.origin.w + deltaX);
+          if(drag.handle.includes('s')) h = Math.max(minH, drag.origin.h + deltaY);
+          if(drag.handle.includes('w')){
+            const nextW = Math.max(minW, drag.origin.w - deltaX);
+            x = drag.origin.x + (drag.origin.w - nextW);
+            w = nextW;
+          }
+          if(drag.handle.includes('n')){
+            const nextH = Math.max(minH, drag.origin.h - deltaY);
+            y = drag.origin.y + (drag.origin.h - nextH);
+            h = nextH;
+          }
+          item.x = round(x);
+          item.y = round(y);
+          item.w = round(w);
+          item.h = round(h);
+          scheduleRender();
+          return;
+        }
+
         if(drag.kind === 'slot'){
           const slot = state.workflowSlots.find((it) => it.id === drag.id);
           if(!slot || slot.locked) return;
@@ -3013,7 +3425,7 @@
       remember('clear-scene');
       state.lastScene = getSceneSnapshot();
       state.freeItems = [];
-      state.workflowSlots = buildTemplate(state.workflowTemplate, state.board.w, state.board.h);
+      if(!state.workspaceLoaded) state.workflowSlots = buildTemplate(state.workflowTemplate, state.board.w, state.board.h);
       state.selected = null;
       scheduleRender();
     }
@@ -3089,6 +3501,13 @@
     });
 
     $('#uploadBtn').addEventListener('click', () => fileInput.click());
+    $('#backupProjectBtn').addEventListener('click', backupProject);
+    $('#restoreProjectBtn').addEventListener('click', () => $('#backupInput').click());
+    $('#backupInput').addEventListener('change', async () => {
+      const file = $('#backupInput').files?.[0];
+      if(file) await restoreProject(file);
+      $('#backupInput').value = '';
+    });
     document.addEventListener('click', (e) => {
       const toggle = e.target.closest('#shortcutTopToggle');
       if(!toggle) return;
@@ -3148,6 +3567,7 @@
     $('#alignAllBtn').addEventListener('click', alignAllSlots);
     $('#addSlotBtn').addEventListener('click', addWorkflowSlot);
     $('#removeSlotBtn').addEventListener('click', removeSelectedWorkflowSlot);
+    $('#addTextBtn').addEventListener('click', addTextItem);
 
     $('#snapGridBtn').addEventListener('click', () => {
       state.snapGrid = !state.snapGrid;
@@ -3225,7 +3645,7 @@
       const field = e.target.closest('[data-prop]');
       if(!field || !state.selected) return;
       const prop = field.dataset.prop;
-      const value = sanitizeNumber(field.value, 0);
+      const value = ['color', 'text', 'align'].includes(prop) ? field.value : sanitizeNumber(field.value, 0);
       const sel = getSelectedObject();
       if(!sel) return;
       if(!field.dataset.historyStarted){
@@ -3246,7 +3666,7 @@
         return;
       }
       sel[prop] = value;
-      if(field.type === 'range'){
+      if(field.type === 'range' || field.tagName === 'TEXTAREA' || field.type === 'color' || field.tagName === 'SELECT'){
         renderWorld();
       }else{
         scheduleRender();
@@ -3267,6 +3687,10 @@
       if(act === 'duplicate' && state.selected.kind === 'slot'){
         const slot = getSelectedObject();
         if(slot) duplicateWorkflowSlot(slot);
+      }
+      if(act === 'duplicate-text' && state.selected.kind === 'text'){
+        const item = getSelectedObject();
+        if(item) duplicateTextItem(item);
       }
       if(act === 'layer-up') moveSelectedLayer(1);
       if(act === 'layer-down') moveSelectedLayer(-1);
@@ -3316,6 +3740,13 @@
     });
 
     $('#assetTray').addEventListener('click', (e) => {
+      const check = e.target.closest('[data-asset-check]');
+      if(check){
+        e.stopPropagation();
+        if(check.checked) state.selectedAssetIds = [...new Set([...state.selectedAssetIds, check.dataset.assetCheck])];
+        else state.selectedAssetIds = state.selectedAssetIds.filter((id) => id !== check.dataset.assetCheck);
+        return;
+      }
       const removeBtn = e.target.closest('[data-asset-remove]');
       if(removeBtn){
         e.stopPropagation();
@@ -3331,6 +3762,15 @@
         assignToSlot(state.selected.id, asset.id);
       }
     });
+
+    $('#selectAllAssetsBtn').addEventListener('click', () => {
+      state.selectedAssetIds = state.selectedAssetIds.length === state.assets.length
+        ? []
+        : state.assets.map((asset) => asset.id);
+      state.assetTraySignature = '';
+      render();
+    });
+    $('#deleteSelectedAssetsBtn').addEventListener('click', deleteSelectedAssets);
 
     $('#assetTray').addEventListener('dragstart', (e) => {
       const card = e.target.closest('.asset-card');
@@ -3463,8 +3903,9 @@
       }
     });
 
-    function init(){
+    async function init(){
       loadPreferences();
+      await loadLocalWorkspace();
       computeBoardSize();
       state.workflowSlots = buildTemplate(state.workflowTemplate, state.board.w, state.board.h);
       if(!state.lastScene){
@@ -3472,6 +3913,7 @@
       }
       setupDockedLayout();
       initPanelSystem();
+      setMode(state.mode);
       syncBoardInputs();
       renderStateInputs();
       fitBoardToViewport();
