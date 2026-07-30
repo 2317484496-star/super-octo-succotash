@@ -909,6 +909,25 @@
             <button class="mini" id="addSlotBtn" type="button">新增框架</button>
             <button class="mini" id="removeSlotBtn" type="button">删除选中框架</button>
           </div>
+          <div class="divider"></div>
+          <div class="panel-head compact"><span>我的排版预设</span><span class="subtle">仅保存在本机</span></div>
+          <div class="control">
+            <label>预设名称</label>
+            <input type="text" id="workflowPresetName" placeholder="例如：小红书三图" maxlength="40" />
+          </div>
+          <div class="row wrap">
+            <button class="mini active" id="saveWorkflowPresetBtn" type="button">保存当前预设</button>
+            <button class="mini" id="shareWorkflowPresetBtn" type="button">复制分享链接</button>
+          </div>
+          <div class="control">
+            <label>已保存预设</label>
+            <select id="workflowPresetSelect"><option value="">暂无预设</option></select>
+          </div>
+          <div class="row wrap">
+            <button class="mini" id="applyWorkflowPresetBtn" type="button">应用选中预设</button>
+            <button class="mini" id="deleteWorkflowPresetBtn" type="button">删除预设</button>
+          </div>
+          <div class="footer-note">分享链接只包含框架排布，不包含图片文件。别人打开后可以一键复制框架，再填入自己的素材。</div>
           <div class="footer-note">
             模板会生成可编辑框架，你可以继续拖动、缩放，最后按当前框架拼接导出。
           </div>
@@ -1093,6 +1112,7 @@
       snapGrid: true,
       workflowTemplate: 'two-two',
       workflowSlots: [],
+      workflowPresets: [],
       selected: null,
       camera: { x: 0, y: 0, zoom: 1 },
       dragging: null,
@@ -1480,10 +1500,14 @@
         assetPanelHeight: state.assetPanelHeight,
         exportCollapsed: exportPanel?.classList.contains('collapsed') ?? true
       }));
+      safeLocalStorage('set', 'collage-studio-workflow-presets', JSON.stringify(state.workflowPresets));
     }
 
     function loadPreferences(){
       try{
+        const rawPresets = safeLocalStorage('get', 'collage-studio-workflow-presets');
+        const parsedPresets = rawPresets ? JSON.parse(rawPresets) : [];
+        state.workflowPresets = Array.isArray(parsedPresets) ? parsedPresets.filter(Boolean) : [];
         const raw = safeLocalStorage('get', 'collage-studio-prefs');
         if(!raw) return;
         const data = JSON.parse(raw);
@@ -1505,6 +1529,137 @@
         state.assetPanelHeight = clamp(data.assetPanelHeight ?? state.assetPanelHeight, 130, 520);
         state.exportCollapsed = data.exportCollapsed ?? true;
       }catch(_err){}
+    }
+
+    function workflowPresetData(name){
+      return {
+        version: 1,
+        name: name || '未命名预设',
+        template: state.workflowTemplate,
+        board: {
+          ratio: state.board.ratio,
+          orientation: state.board.orientation,
+          sizeScale: state.board.sizeScale,
+          w: state.board.w,
+          h: state.board.h
+        },
+        slots: state.workflowSlots.map((slot) => ({
+          x: slot.x,
+          y: slot.y,
+          w: slot.w,
+          h: slot.h,
+          assetId: slot.assetId || null,
+          scale: slot.scale || 100,
+          ox: slot.ox || 0,
+          oy: slot.oy || 0,
+          locked: !!slot.locked
+        }))
+      };
+    }
+
+    function normalizeWorkflowPreset(preset){
+      if(!preset || !Array.isArray(preset.slots)) return null;
+      const board = preset.board || {};
+      return {
+        version: 1,
+        name: String(preset.name || '共享预设').slice(0, 40),
+        template: TEMPLATE_BUILDERS[preset.template] ? preset.template : 'blank',
+        board: {
+          ratio: preset.board?.ratio === 'free' || ASPECT_PRESETS[preset.board?.ratio] ? preset.board.ratio : '16:9',
+          orientation: preset.board?.orientation === 'portrait' ? 'portrait' : 'landscape',
+          sizeScale: clamp(sanitizeNumber(board.sizeScale, 100), 10, 800),
+          w: Math.max(50, sanitizeNumber(board.w, 1240)),
+          h: Math.max(50, sanitizeNumber(board.h, 698))
+        },
+        slots: preset.slots.slice(0, 120).map((slot) => ({
+          x: sanitizeNumber(slot.x, 0),
+          y: sanitizeNumber(slot.y, 0),
+          w: Math.max(20, sanitizeNumber(slot.w, 200)),
+          h: Math.max(20, sanitizeNumber(slot.h, 200)),
+          assetId: typeof slot.assetId === 'string' && getAssetById(slot.assetId) ? slot.assetId : null,
+          scale: Math.max(1, sanitizeNumber(slot.scale, 100)),
+          ox: sanitizeNumber(slot.ox, 0),
+          oy: sanitizeNumber(slot.oy, 0),
+          locked: !!slot.locked
+        }))
+      };
+    }
+
+    function applyWorkflowPreset(rawPreset){
+      const preset = normalizeWorkflowPreset(rawPreset);
+      if(!preset) return false;
+      remember('apply-workflow-preset');
+      state.mode = 'workflow';
+      state.workflowTemplate = preset.template;
+      state.board.ratio = preset.board.ratio;
+      state.board.orientation = preset.board.orientation;
+      state.board.sizeScale = preset.board.sizeScale;
+      state.board.lockedAspect = preset.board.ratio !== 'free';
+      state.board.w = round(preset.board.w);
+      state.board.h = round(preset.board.h);
+      state.workflowSlots = preset.slots.map((slot) => ({ ...slot, id: uid('slot') }));
+      setMode('workflow');
+      scheduleRender();
+      return true;
+    }
+
+    function renderWorkflowPresets(){
+      const select = $('#workflowPresetSelect');
+      if(!select) return;
+      const current = select.value;
+      select.innerHTML = state.workflowPresets.length
+        ? state.workflowPresets.map((preset, index) => `<option value="${index}">${escapeHtml(preset.name)}</option>`).join('')
+        : '<option value="">暂无预设</option>';
+      if(state.workflowPresets.length && state.workflowPresets[current]) select.value = current;
+    }
+
+    function encodeWorkflowPreset(preset){
+      const bytes = new TextEncoder().encode(JSON.stringify(preset));
+      let binary = '';
+      bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+      return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+    }
+
+    function decodeWorkflowPreset(encoded){
+      try{
+        const base64 = encoded.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - encoded.length % 4) % 4);
+        const binary = atob(base64);
+        const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+        return JSON.parse(new TextDecoder().decode(bytes));
+      }catch(_err){
+        return null;
+      }
+    }
+
+    async function shareWorkflowPreset(){
+      const name = $('#workflowPresetName').value.trim() || '共享排版预设';
+      const url = `${location.href.split('#')[0]}#preset=${encodeWorkflowPreset(workflowPresetData(name))}`;
+      try{
+        await navigator.clipboard.writeText(url);
+        alert('分享链接已复制。发送给别人后，对方打开即可一键导入框架。');
+      }catch(_err){
+        window.prompt('请复制下面的分享链接：', url);
+      }
+    }
+
+    function importSharedWorkflowPreset(){
+      const match = location.hash.match(/(?:^#|&)preset=([^&]+)/);
+      if(!match) return;
+      const preset = decodeWorkflowPreset(match[1]);
+      if(!preset) return;
+      const name = preset.name || '共享排版预设';
+      if(!confirm(`发现共享预设“${name}”，是否一键复制到当前固定流程？`)) return;
+      if(applyWorkflowPreset(preset)){
+        const saved = normalizeWorkflowPreset(preset);
+        state.workflowPresets = [
+          ...state.workflowPresets.filter((item) => item.name !== saved.name),
+          saved
+        ];
+        savePreferences();
+        render();
+        alert('预设已复制到你的固定流程和本机预设库。');
+      }
+      history.replaceState(null, '', location.href.split('#')[0]);
     }
 
     const shortcutActions = [
@@ -2230,6 +2385,7 @@
     function render(){
       syncBoardInputs();
       renderAssetTray();
+      renderWorkflowPresets();
       renderInspector();
       renderShortcutPanel();
       renderWorld();
@@ -3031,6 +3187,40 @@
       setMode('workflow');
     });
 
+    $('#saveWorkflowPresetBtn').addEventListener('click', () => {
+      const input = $('#workflowPresetName');
+      const name = input.value.trim();
+      if(!name){
+        input.focus();
+        alert('请先输入预设名称。');
+        return;
+      }
+      const preset = workflowPresetData(name);
+      const existing = state.workflowPresets.findIndex((item) => item.name === name);
+      if(existing >= 0) state.workflowPresets[existing] = preset;
+      else state.workflowPresets.push(preset);
+      savePreferences();
+      render();
+      $('#workflowPresetSelect').value = String(existing >= 0 ? existing : state.workflowPresets.length - 1);
+    });
+
+    $('#shareWorkflowPresetBtn').addEventListener('click', shareWorkflowPreset);
+    $('#applyWorkflowPresetBtn').addEventListener('click', () => {
+      const index = Number($('#workflowPresetSelect').value);
+      const preset = state.workflowPresets[index];
+      if(!preset) return;
+      applyWorkflowPreset(preset);
+    });
+    $('#deleteWorkflowPresetBtn').addEventListener('click', () => {
+      const select = $('#workflowPresetSelect');
+      const index = Number(select.value);
+      if(!state.workflowPresets[index]) return;
+      if(!confirm(`确定删除预设“${state.workflowPresets[index].name}”吗？`)) return;
+      state.workflowPresets.splice(index, 1);
+      savePreferences();
+      render();
+    });
+
     $('#inspector').addEventListener('input', (e) => {
       const field = e.target.closest('[data-prop]');
       if(!field || !state.selected) return;
@@ -3286,6 +3476,7 @@
       renderStateInputs();
       fitBoardToViewport();
       render();
+      importSharedWorkflowPreset();
       savePreferences();
     }
 
