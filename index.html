@@ -849,6 +849,7 @@
                 <option value="1:1">1:1</option>
                 <option value="2:1">2:1</option>
                 <option value="1.85:1">1.85:1</option>
+                <option value="free">自由比例</option>
               </select>
             </div>
             <div class="control grow">
@@ -1208,6 +1209,14 @@
     }
 
     function computeBoardSize(){
+      if(state.board.ratio === 'free'){
+        const targetLongEdge = 1240 * (state.board.sizeScale / 100);
+        const currentLongEdge = Math.max(state.board.w, state.board.h) || 1240;
+        const factor = targetLongEdge / currentLongEdge;
+        state.board.w = round(state.board.w * factor);
+        state.board.h = round(state.board.h * factor);
+        return;
+      }
       const aspect = ratioValue(state.board.ratio);
       const longEdge = 1240 * (state.board.sizeScale / 100);
       const landscape = state.board.orientation !== 'portrait';
@@ -1246,7 +1255,11 @@
       remember('board-ratio');
       const oldW = state.board.w;
       const oldH = state.board.h;
-      preserveCenter ? preserveBoardCenter(() => { state.board.ratio = ratio; computeBoardSize(); }) : (state.board.ratio = ratio, computeBoardSize());
+      preserveCenter ? preserveBoardCenter(() => {
+        state.board.ratio = ratio;
+        state.board.lockedAspect = ratio !== 'free';
+        if(ratio !== 'free') computeBoardSize();
+      }) : (state.board.ratio = ratio, state.board.lockedAspect = ratio !== 'free', ratio !== 'free' && computeBoardSize());
       rescaleWorkflowSlots(oldW, oldH);
       syncBoardInputs();
       scheduleRender();
