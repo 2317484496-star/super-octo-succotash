@@ -363,7 +363,7 @@
       user-select:none;
     }
     .board{
-      border-radius:22px;
+      border-radius:0;
       border:2px solid rgba(99,211,255,.7);
       background:
         linear-gradient(135deg, rgba(99,211,255,.06), rgba(117,240,197,.04)),
@@ -851,6 +851,7 @@
           <div class="row wrap">
             <button class="mini" id="selectAllAssetsBtn" type="button">全选素材</button>
             <button class="mini" id="deleteSelectedAssetsBtn" type="button">批量删除</button>
+            <button class="mini" id="clearAllAssetsBtn" type="button">清除全部素材</button>
             <button class="mini" id="backupProjectBtn" type="button">备份项目</button>
             <button class="mini" id="restoreProjectBtn" type="button">恢复项目</button>
           </div>
@@ -1062,6 +1063,7 @@
           <div class="chip">缩放 <strong id="zoomLabel">100%</strong></div>
           <div class="chip">素材 <strong id="chipsAssets">0</strong></div>
           <div class="chip">框架 <strong id="chipsBoard">1</strong></div>
+          <button class="chip active" id="edgeSnapTopToggle" type="button" title="切换边缘吸附">边缘吸附 <strong>开</strong></button>
         </div>
       </div>
       <div class="stage-shell">
@@ -1178,6 +1180,7 @@
       board: { x: 120, y: 100, ratio: '16:9', orientation: 'landscape', sizeScale: 100, lockedAspect: true, locked: false, w: 1240, h: 698 },
       gridSize: 32,
       snapGrid: true,
+      edgeSnap: true,
       workflowTemplate: 'two-two',
       workflowSlots: [],
       workflowPresets: [],
@@ -1255,6 +1258,7 @@
         board: { ...state.board },
         gridSize: state.gridSize,
         snapGrid: state.snapGrid,
+        edgeSnap: state.edgeSnap,
         workflowTemplate: state.workflowTemplate,
         workflowSlots: state.workflowSlots.map((slot) => ({ ...slot })),
         freeItems: state.freeItems.map((item) => ({ ...item })),
@@ -1690,6 +1694,7 @@
         board: { ...state.board },
         gridSize: state.gridSize,
         snapGrid: state.snapGrid,
+        edgeSnap: state.edgeSnap,
         workflowTemplate: state.workflowTemplate,
         workflowSlots: state.workflowSlots.map((slot) => ({ ...slot })),
         freeItems: state.freeItems.map((item) => ({ ...item })),
@@ -1796,6 +1801,7 @@
         }
         state.gridSize = data.gridSize ?? state.gridSize;
         state.snapGrid = data.snapGrid ?? state.snapGrid;
+        state.edgeSnap = data.edgeSnap ?? state.edgeSnap;
         state.exportQuality = data.exportQuality || state.exportQuality;
         state.transparentExport = data.transparentExport ?? state.transparentExport;
         state.workflowTemplate = data.workflowTemplate || state.workflowTemplate;
@@ -2719,6 +2725,8 @@
       $('#workflowScale').value = state.board.sizeScale;
       $('#lockBoardBtn').textContent = state.board.locked ? '已锁定导出框' : '锁定导出框';
       $('#workflowLockBoardBtn').textContent = state.board.locked ? '已锁定导出框' : '锁定导出框';
+      $('#edgeSnapTopToggle').classList.toggle('active', state.edgeSnap);
+      $('#edgeSnapTopToggle strong').textContent = state.edgeSnap ? '开' : '关';
     }
 
     async function loadFiles(files){
@@ -2852,6 +2860,69 @@
       state.assetTraySignature = '';
       state.selectedAssetIds = state.selectedAssetIds.filter((id) => id !== assetId);
       scheduleRender();
+    }
+
+    function clearAllAssets(){
+      if(!state.assets.length) return;
+      if(!confirm(`确定清除全部 ${state.assets.length} 个素材吗？画布中使用这些素材的图片也会被移除。`)) return;
+      remember('clear-all-assets');
+      state.assets = [];
+      state.freeItems = [];
+      state.workflowSlots.forEach((slot) => {
+        slot.assetId = null;
+        slot.scale = 100;
+        slot.ox = 0;
+        slot.oy = 0;
+      });
+      state.selectedAssetIds = [];
+      state.selected = null;
+      state.assetTraySignature = '';
+      scheduleRender();
+    }
+
+    function nearestSnap(value, candidates, threshold = 12){
+      let best = value;
+      let distance = threshold + 1;
+      candidates.forEach((candidate) => {
+        const nextDistance = Math.abs(value - candidate);
+        if(nextDistance <= threshold && nextDistance < distance){
+          best = candidate;
+          distance = nextDistance;
+        }
+      });
+      return best;
+    }
+
+    function snapWorkflowSlot(slot, x, y, w, h, mode = 'move'){
+      if(!state.edgeSnap || state.mode !== 'workflow') return { x, y, w, h };
+      const targetsX = [0, state.board.w];
+      const targetsY = [0, state.board.h];
+      state.workflowSlots.forEach((other) => {
+        if(other.id === slot.id) return;
+        targetsX.push(other.x, other.x + other.w);
+        targetsY.push(other.y, other.y + other.h);
+      });
+      if(mode === 'move'){
+        const nextX = nearestSnap(x, targetsX) ?? x;
+        const nextY = nearestSnap(y, targetsY) ?? y;
+        const rightX = nearestSnap(x + w, targetsX);
+        const bottomY = nearestSnap(y + h, targetsY);
+        return {
+          x: rightX !== x + w ? rightX - w : nextX,
+          y: bottomY !== y + h ? bottomY - h : nextY,
+          w,
+          h
+        };
+      }
+      let nextX = x;
+      let nextY = y;
+      let nextW = w;
+      let nextH = h;
+      if(slot.x !== x) nextX = nearestSnap(x, targetsX);
+      if(slot.y !== y) nextY = nearestSnap(y, targetsY);
+      if(Math.abs((x + w) - nearestSnap(x + w, targetsX)) <= 12) nextW = nearestSnap(x + w, targetsX) - x;
+      if(Math.abs((y + h) - nearestSnap(y + h, targetsY)) <= 12) nextH = nearestSnap(y + h, targetsY) - y;
+      return { x: nextX, y: nextY, w: Math.max(20, nextW), h: Math.max(20, nextH) };
     }
 
     function deleteSelectedAssets(){
@@ -3251,8 +3322,16 @@
       if(drag.type === 'move' && drag.kind === 'slot'){
         const slot = state.workflowSlots.find((it) => it.id === drag.id);
         if(!slot || slot.locked) return;
-        slot.x = round(drag.origin.x + dx);
-        slot.y = round(drag.origin.y + dy);
+        const snapped = snapWorkflowSlot(
+          slot,
+          round(drag.origin.x + dx),
+          round(drag.origin.y + dy),
+          slot.w,
+          slot.h,
+          'move'
+        );
+        slot.x = round(snapped.x);
+        slot.y = round(snapped.y);
         scheduleRender();
         return;
       }
@@ -3426,6 +3505,11 @@
             y = drag.origin.y + (drag.origin.h - nextH);
             h = nextH;
           }
+          const snapped = snapWorkflowSlot(slot, x, y, w, h, 'resize');
+          x = snapped.x;
+          y = snapped.y;
+          w = snapped.w;
+          h = snapped.h;
           slot.x = round(x);
           slot.y = round(y);
           slot.w = round(w);
@@ -3816,6 +3900,13 @@
       render();
     });
     $('#deleteSelectedAssetsBtn').addEventListener('click', deleteSelectedAssets);
+    $('#clearAllAssetsBtn').addEventListener('click', clearAllAssets);
+
+    $('#edgeSnapTopToggle').addEventListener('click', () => {
+      state.edgeSnap = !state.edgeSnap;
+      savePreferences();
+      render();
+    });
 
     $('#assetTray').addEventListener('dragstart', (e) => {
       const card = e.target.closest('.asset-card');
