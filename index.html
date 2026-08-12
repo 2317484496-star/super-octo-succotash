@@ -922,6 +922,39 @@
     .slot .badge{border-radius:4px;font-size:10px;padding:5px 7px;background:rgba(5,9,14,.7)}
     .selected{box-shadow:0 0 0 1px rgba(229,184,111,.98),0 0 0 5px rgba(229,184,111,.12)}
     .grid{opacity:.38}
+    .preview-mode{
+      grid-template-columns:minmax(0,1fr) !important;
+      gap:0;
+      padding:8px;
+    }
+    .preview-mode > .sidebar,
+    .preview-mode > .asset-side{
+      display:none !important;
+    }
+    .preview-mode .toolbar{
+      margin-bottom:8px;
+      border-color:rgba(229,184,111,.24);
+    }
+    .preview-mode .stage-shell{
+      border-color:rgba(229,184,111,.3);
+      box-shadow:0 28px 100px rgba(0,0,0,.54), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    .preview-mode .grid,
+    .preview-mode .handles,
+    .preview-mode .board-label,
+    .preview-mode .caption,
+    .preview-mode .slot .badge,
+    .preview-mode .help-card{
+      display:none !important;
+    }
+    .preview-mode .board{
+      box-shadow:0 30px 90px rgba(0,0,0,.46);
+    }
+    .preview-mode #previewToggle{
+      color:#101820;
+      background:linear-gradient(135deg,#e5b86f,#f4d795);
+      border-color:#f1dba7;
+    }
   </style>
 </head>
 <body>
@@ -1186,6 +1219,7 @@
           <span id="workspaceSubtitle">把图片放到导出框里，自由排布后一次性导出。</span>
         </div>
         <div class="chips">
+          <button class="chip" id="previewToggle" type="button" title="进入纯画布预览">预览 <strong>⌘\</strong></button>
           <button class="chip" id="shortcutTopToggle" type="button" title="快捷键设置">快捷键 <strong>⌘</strong></button>
           <div class="chip">缩放 <strong id="zoomLabel">100%</strong></div>
           <div class="chip">素材 <strong id="chipsAssets">0</strong></div>
@@ -1308,6 +1342,7 @@
       gridSize: 32,
       snapGrid: true,
       edgeSnap: true,
+      previewMode: false,
       workflowTemplate: 'two-two',
       workflowSlots: [],
       workflowPresets: [],
@@ -1387,6 +1422,7 @@
         gridSize: state.gridSize,
         snapGrid: state.snapGrid,
         edgeSnap: state.edgeSnap,
+        previewMode: state.previewMode,
         workflowTemplate: state.workflowTemplate,
         workflowSlots: state.workflowSlots.map((slot) => ({ ...slot })),
         freeItems: state.freeItems.map((item) => ({ ...item })),
@@ -1931,6 +1967,7 @@
         state.gridSize = data.gridSize ?? state.gridSize;
         state.snapGrid = data.snapGrid ?? state.snapGrid;
         state.edgeSnap = data.edgeSnap ?? state.edgeSnap;
+        state.previewMode = !!data.previewMode;
         state.exportQuality = data.exportQuality || state.exportQuality;
         state.transparentExport = data.transparentExport ?? state.transparentExport;
         state.workflowTemplate = data.workflowTemplate || state.workflowTemplate;
@@ -2442,6 +2479,16 @@
       if(mode === 'workflow' && state.workflowSlots.length === 0){
         rebuildWorkflowTemplate(state.workflowTemplate);
       }
+      savePreferences();
+      scheduleRender();
+    }
+
+    function setPreviewMode(active){
+      state.previewMode = !!active;
+      app.classList.toggle('preview-mode', state.previewMode);
+      const toggle = $('#previewToggle');
+      toggle.textContent = state.previewMode ? '编辑' : '预览';
+      toggle.title = state.previewMode ? '返回编辑界面' : '进入纯画布预览';
       savePreferences();
       scheduleRender();
     }
@@ -4185,6 +4232,7 @@
       savePreferences();
       render();
     });
+    $('#previewToggle').addEventListener('click', () => setPreviewMode(!state.previewMode));
 
     $('#assetTray').addEventListener('dragstart', (e) => {
       const card = e.target.closest('.asset-card');
@@ -4262,6 +4310,11 @@
     window.addEventListener('keydown', (e) => {
       const activeTag = document.activeElement?.tagName?.toLowerCase();
       const editingText = activeTag === 'input' || activeTag === 'textarea' || document.activeElement?.isContentEditable;
+      if(!editingText && matchShortcut(e, 'Control+Backslash')){
+        e.preventDefault();
+        setPreviewMode(!state.previewMode);
+        return;
+      }
       if(state.shortcutEdit){
         const combo = captureShortcut(e);
         if(e.key === 'Escape'){
@@ -4328,6 +4381,7 @@
       setupDockedLayout();
       initPanelSystem();
       setMode(state.mode);
+      setPreviewMode(state.previewMode);
       syncBoardInputs();
       renderStateInputs();
       fitBoardToViewport();
