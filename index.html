@@ -4159,7 +4159,18 @@
     viewport.addEventListener('pointercancel', endInteraction);
     viewport.addEventListener('wheel', (event) => {
       event.preventDefault();
-      zoomAt(event.clientX, event.clientY, event.deltaY);
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1;
+      const deltaX = event.deltaX * unit;
+      const deltaY = event.deltaY * unit;
+      if(event.ctrlKey || event.metaKey){
+        zoomAt(event.clientX, event.clientY, deltaY);
+        return;
+      }
+      const horizontal = event.shiftKey ? (deltaY || deltaX) : deltaX;
+      const vertical = event.shiftKey ? 0 : deltaY;
+      state.camera.x -= horizontal / state.camera.zoom;
+      state.camera.y -= vertical / state.camera.zoom;
+      scheduleRender();
     }, { passive: false });
 
     viewport.addEventListener('dragover', (e) => {
