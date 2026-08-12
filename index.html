@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Y-v06 Studio 图像拼接工作台</title>
+  <title>Y-v07 Studio 图像拼接工作台</title>
   <style>
     :root{
       --bg0:#07101d;
@@ -471,7 +471,6 @@
     }
     .align-guide.vertical{top:0;bottom:0;width:2px;transform:translateX(-1px)}
     .align-guide.horizontal{left:0;right:0;height:2px;transform:translateY(-1px);background:linear-gradient(0deg, transparent, rgba(255,203,107,.96), transparent)}
-    .workflow-focus #workflowPanel{border-color:rgba(117,240,197,.52);box-shadow:0 18px 48px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.05)}
     .handles{
       position:absolute;
       inset:0;
@@ -978,7 +977,7 @@
       <div class="brand">
         <div class="mark"></div>
         <div>
-          <h1>Y-v06 Studio</h1>
+          <h1>Y-v07 Studio</h1>
           <p>无限画布 + 固定工作流 · 浮动面板 · PNG 无损导出</p>
         </div>
       </div>
@@ -1150,7 +1149,6 @@
             <button class="mini active" id="autoFillBtn" type="button">自动填充</button>
             <button class="mini" id="shuffleBtn" type="button">重新排布</button>
             <button class="mini" id="alignAllBtn" type="button">全部归位</button>
-            <button class="mini active" id="smartLayoutBtn" type="button">智能自动排版</button>
             <button class="mini" id="addSlotBtn" type="button">新增框架</button>
             <button class="mini" id="removeSlotBtn" type="button">删除选中框架</button>
           </div>
@@ -2519,7 +2517,6 @@
       workspaceSubtitle.textContent = mode === 'free'
         ? '把导出框放在任意位置，自由拖拽图片排布，然后按当前内容导出。'
         : '以导出框为中心编辑框架，自动排版、对齐拼接并一键导出。';
-      app.classList.toggle('workflow-focus', mode === 'workflow');
       if(mode === 'workflow' && state.workflowSlots.length === 0){
         rebuildWorkflowTemplate(state.workflowTemplate);
       }
@@ -3413,37 +3410,6 @@
       scheduleRender();
     }
 
-    function smartLayoutSlots(){
-      if(!state.workflowSlots.length) return;
-      remember('smart-layout');
-      const count = state.workflowSlots.length;
-      const padding = Math.max(18, Math.round(Math.min(state.board.w, state.board.h) * .035));
-      const gap = Math.max(12, Math.round(Math.min(state.board.w, state.board.h) * .022));
-      const boardRatio = state.board.w / Math.max(1, state.board.h);
-      const cols = Math.max(1, Math.ceil(Math.sqrt(count * boardRatio)));
-      const rows = Math.max(1, Math.ceil(count / cols));
-      const cellW = Math.max(40, (state.board.w - padding * 2 - gap * (cols - 1)) / cols);
-      const cellH = Math.max(40, (state.board.h - padding * 2 - gap * (rows - 1)) / rows);
-      state.workflowSlots.forEach((slot, index) => {
-        const row = Math.floor(index / cols);
-        const col = index % cols;
-        const itemsInRow = Math.min(cols, count - row * cols);
-        const rowWidth = itemsInRow * cellW + Math.max(0, itemsInRow - 1) * gap;
-        const rowOffset = (state.board.w - rowWidth) / 2;
-        slot.x = round(rowOffset + col * (cellW + gap));
-        slot.y = round(padding + row * (cellH + gap));
-        slot.w = round(cellW);
-        slot.h = round(cellH);
-        slot.scale = 100;
-        slot.ox = 0;
-        slot.oy = 0;
-      });
-      state.multiSelected = [];
-      state.selected = null;
-      state.guideLines = [];
-      scheduleRender();
-    }
-
     function alignmentGuidesFor(slot, x, y){
       const threshold = 10;
       const verticalTargets = [0, state.board.w / 2, state.board.w];
@@ -3732,8 +3698,7 @@
           scheduleRender();
           return;
         }
-        if(!state.multiSelected.includes(id)) setWorkflowSelection([id]);
-        else state.selected = { kind: 'slot', id };
+        setWorkflowSelection([id]);
         if(slot.locked) return;
         const selectedSlots = selectedWorkflowSlots().filter((item) => !item.locked);
         state.dragging = {
@@ -4230,7 +4195,6 @@
       scheduleRender();
     });
     $('#alignAllBtn').addEventListener('click', alignAllSlots);
-    $('#smartLayoutBtn').addEventListener('click', smartLayoutSlots);
     $('#addSlotBtn').addEventListener('click', addWorkflowSlot);
     $('#removeSlotBtn').addEventListener('click', removeSelectedWorkflowSlot);
     $('#addTextBtn').addEventListener('click', addTextItem);
