@@ -1873,6 +1873,10 @@
         board: snapshot.board,
         gridSize: snapshot.gridSize,
         snapGrid: snapshot.snapGrid,
+        edgeSnap: snapshot.edgeSnap,
+        workflowPresets: snapshot.workflowPresets,
+        shortcuts: snapshot.shortcuts,
+        panelPrefs: snapshot.panelPrefs,
         workflowTemplate: snapshot.workflowTemplate,
         workflowSlots: snapshot.workflowSlots,
         freeItems: snapshot.freeItems,
@@ -1899,6 +1903,12 @@
         gridSize: state.gridSize,
         snapGrid: state.snapGrid,
         edgeSnap: state.edgeSnap,
+        workflowPresets: state.workflowPresets.map((preset) => ({
+          ...preset,
+          slots: (preset.slots || []).map((slot) => ({ ...slot }))
+        })),
+        shortcuts: { ...state.shortcuts },
+        panelPrefs: JSON.parse(JSON.stringify(state.panelPrefs || {})),
         workflowTemplate: state.workflowTemplate,
         workflowSlots: state.workflowSlots.map((slot) => ({ ...slot })),
         freeItems: state.freeItems.map((item) => ({ ...item })),
@@ -1939,15 +1949,26 @@
       state.board = { ...state.board, ...snapshot.board };
       state.gridSize = snapshot.gridSize ?? state.gridSize;
       state.snapGrid = snapshot.snapGrid ?? state.snapGrid;
+      state.edgeSnap = snapshot.edgeSnap ?? state.edgeSnap;
+      state.workflowPresets = (snapshot.workflowPresets || state.workflowPresets).map((preset) => ({
+        ...preset,
+        slots: (preset.slots || []).map((slot) => ({ ...slot }))
+      }));
+      state.shortcuts = { ...state.shortcuts, ...(snapshot.shortcuts || {}) };
+      state.panelPrefs = JSON.parse(JSON.stringify(snapshot.panelPrefs || state.panelPrefs || {}));
       state.workflowTemplate = snapshot.workflowTemplate || state.workflowTemplate;
       state.workflowSlots = (snapshot.workflowSlots || []).map((slot) => ({ ...slot }));
       state.freeItems = (snapshot.freeItems || []).map((item) => ({ ...item }));
       state.textItems = (snapshot.textItems || []).map((item) => ({ ...item }));
       state.annotations = (snapshot.annotations || []).map((item) => ({ ...item }));
       state.selected = snapshot.selected ? { ...snapshot.selected } : null;
+      state.multiSelected = [];
+      state.guideLines = [];
       state.assetTraySignature = '';
       computeBoardSize();
       syncBoardInputs();
+      setMode(state.mode);
+      queueLocalPersistence();
       render();
     }
 
@@ -4049,6 +4070,7 @@
         alert('当前没有可恢复的场景。');
         return;
       }
+      remember('restore-scene');
       restoreSceneSnapshot(state.lastScene);
     }
 
@@ -4161,18 +4183,22 @@
     $('#modeToggle').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-mode]');
       if(!btn) return;
+      if(btn.dataset.mode !== state.mode) remember('change-mode');
       setMode(btn.dataset.mode);
     });
 
     $('#qualityGroup').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-quality]');
       if(!btn) return;
+      if(btn.dataset.quality === state.exportQuality) return;
+      remember('export-quality');
       state.exportQuality = btn.dataset.quality;
       savePreferences();
       render();
     });
 
     $('#transparentBtn').addEventListener('click', () => {
+      remember('transparent-export');
       state.transparentExport = !state.transparentExport;
       savePreferences();
       render();
@@ -4200,12 +4226,17 @@
     $('#addTextBtn').addEventListener('click', addTextItem);
 
     $('#snapGridBtn').addEventListener('click', () => {
+      remember('toggle-grid-snap');
       state.snapGrid = !state.snapGrid;
       savePreferences();
       render();
     });
 
     $('#gridSize').addEventListener('input', (e) => {
+      if(!e.target.dataset.historyStarted){
+        remember('grid-size');
+        e.target.dataset.historyStarted = '1';
+      }
       state.gridSize = sanitizeNumber(e.target.value, 32);
       savePreferences();
       scheduleRender();
@@ -4251,6 +4282,7 @@
         alert('请先输入预设名称。');
         return;
       }
+      remember('save-workflow-preset');
       const preset = workflowPresetData(name);
       const existing = state.workflowPresets.findIndex((item) => item.name === name);
       if(existing >= 0) state.workflowPresets[existing] = preset;
@@ -4272,6 +4304,7 @@
       const index = Number(select.value);
       if(!state.workflowPresets[index]) return;
       if(!confirm(`确定删除预设“${state.workflowPresets[index].name}”吗？`)) return;
+      remember('delete-workflow-preset');
       state.workflowPresets.splice(index, 1);
       savePreferences();
       render();
@@ -4428,6 +4461,7 @@
     $('#clearAllAssetsBtn').addEventListener('click', clearAllAssets);
 
     $('#edgeSnapTopToggle').addEventListener('click', () => {
+      remember('toggle-edge-snap');
       state.edgeSnap = !state.edgeSnap;
       savePreferences();
       render();
@@ -4523,6 +4557,7 @@
           return;
         }
         if(combo){
+          remember('edit-shortcut');
           state.shortcuts[state.shortcutEdit] = combo;
           state.shortcutEdit = null;
           savePreferences();
@@ -4557,10 +4592,10 @@
         deleteSelected();
         return;
       }
-      if(e.key === 'ArrowLeft'){ e.preventDefault(); sel.x -= step; scheduleRender(); }
-      if(e.key === 'ArrowRight'){ e.preventDefault(); sel.x += step; scheduleRender(); }
-      if(e.key === 'ArrowUp'){ e.preventDefault(); sel.y -= step; scheduleRender(); }
-      if(e.key === 'ArrowDown'){ e.preventDefault(); sel.y += step; scheduleRender(); }
+      if(e.key === 'ArrowLeft'){ e.preventDefault(); remember('keyboard-move'); sel.x -= step; scheduleRender(); }
+      if(e.key === 'ArrowRight'){ e.preventDefault(); remember('keyboard-move'); sel.x += step; scheduleRender(); }
+      if(e.key === 'ArrowUp'){ e.preventDefault(); remember('keyboard-move'); sel.y -= step; scheduleRender(); }
+      if(e.key === 'ArrowDown'){ e.preventDefault(); remember('keyboard-move'); sel.y += step; scheduleRender(); }
     });
 
     window.addEventListener('resize', () => {
