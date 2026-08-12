@@ -621,6 +621,30 @@
       text-align:center;
       font-size:12px;
     }
+    .compression-results{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      max-height:180px;
+      overflow:auto;
+    }
+    .compression-result{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      padding:8px 10px;
+      border-radius:10px;
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.07);
+      font-size:11px;
+    }
+    .compression-result .result-name{
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
     .asset-side.drag-over .asset-drop-hint{
       display:block;
     }
@@ -847,6 +871,7 @@
         <div class="stack">
           <button class="btn" id="uploadBtn" type="button">上传多张图片</button>
           <input id="fileInput" type="file" accept="image/*" multiple hidden />
+          <input id="compressInput" type="file" accept="image/*" multiple hidden />
           <input id="backupInput" type="file" accept="application/json,.json" hidden />
           <div class="row wrap">
             <button class="mini" id="selectAllAssetsBtn" type="button">全选素材</button>
@@ -855,6 +880,25 @@
             <button class="mini" id="backupProjectBtn" type="button">备份项目</button>
             <button class="mini" id="restoreProjectBtn" type="button">恢复项目</button>
           </div>
+          <div class="divider"></div>
+          <div class="panel-head compact"><span>图片压缩</span><span class="subtle">目标 19.8MB</span></div>
+          <div class="row">
+            <div class="control grow">
+              <label>输出格式</label>
+              <select id="compressFormat">
+                <option value="auto">原本格式</option>
+                <option value="image/jpeg">JPG</option>
+                <option value="image/png">PNG</option>
+                <option value="image/webp">WebP</option>
+              </select>
+            </div>
+            <button class="mini active" id="compressBtn" type="button">选择图片压缩</button>
+          </div>
+          <div class="row wrap">
+            <button class="mini" id="compressAssetsBtn" type="button">压缩已选素材</button>
+            <button class="mini" id="downloadAllCompressedBtn" type="button">下载全部结果</button>
+          </div>
+          <div class="compression-results" id="compressionResults"></div>
           <div class="asset-tray" id="assetTray"></div>
         </div>
       </section>
@@ -1186,6 +1230,7 @@
       workflowPresets: [],
       textItems: [],
       selectedAssetIds: [],
+      compressionResults: [],
       selected: null,
       camera: { x: 0, y: 0, zoom: 1 },
       dragging: null,
@@ -1277,7 +1322,7 @@
           const url = URL.createObjectURL(record.blob);
           const img = await loadImage(url);
           if(!img){ URL.revokeObjectURL(url); continue; }
-          loaded.push({ ...record, url, img });
+          loaded.push({ ...record, url, img, mime: record.mime || record.blob.type || 'image/png' });
         }
         const scene = await idbRequest(db.transaction('scene', 'readonly').objectStore('scene').get('current'));
         state.assets = loaded;
@@ -1314,6 +1359,7 @@
             fingerprint: asset.fingerprint,
             width: asset.width,
             height: asset.height,
+            mime: asset.mime || asset.blob?.type || 'image/png',
             blob: asset.blob
           });
         });
@@ -2453,6 +2499,137 @@
       assetTray.scrollTop = scrollTop;
     }
 
+    function formatBytes(bytes){
+      if(bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+      return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+    }
+
+    function outputExtension(mime, originalName){
+      if(mime === 'image/jpeg') return 'jpg';
+      if(mime === 'image/png') return 'png';
+      if(mime === 'image/webp') return 'webp';
+      return originalName.split('.').pop() || 'png';
+    }
+
+    function loadBitmap(blob){
+      return createImageBitmap(blob).catch(async () => {
+        const url = URL.createObjectURL(blob);
+        const image = await loadImage(url);
+        URL.revokeObjectURL(url);
+        return image;
+      });
+    }
+
+    async function encodeCanvas(canvas, mime, quality){
+      return new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
+    }
+
+    async function compressImageFile(file, format){
+      const originalMime = file.type || 'image/png';
+      const mime = format === 'auto' ? originalMime : format;
+      const needsCompression = file.size > 19.8 * 1024 * 1024 || format !== 'auto';
+      if(!needsCompression) return { blob: file, name: file.name, originalSize: file.size, size: file.size, mime };
+      const image = await loadBitmap(file);
+      if(!image) return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width || image.naturalWidth;
+      canvas.height = image.height || image.naturalHeight;
+      const ctx = canvas.getContext('2d', { alpha: mime !== 'image/jpeg' });
+      if(mime === 'image/jpeg'){
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      if(image.close) image.close();
+
+      const target = 19.8 * 1024 * 1024;
+      let quality = mime === 'image/png' ? undefined : 0.92;
+      let blob = await encodeCanvas(canvas, mime, quality);
+      if(!blob) return null;
+      if(blob.size > target && mime !== 'image/png'){
+        let low = 0.1;
+        let high = quality || 0.92;
+        for(let index = 0; index < 8; index++){
+          const mid = (low + high) / 2;
+          const candidate = await encodeCanvas(canvas, mime, mid);
+          if(!candidate) break;
+          if(candidate.size > target) high = mid;
+          else { blob = candidate; low = mid; }
+        }
+      }else if(blob.size > target && mime === 'image/png'){
+        let scale = 0.96;
+        while(blob.size > target && scale > 0.5){
+          const reduced = document.createElement('canvas');
+          reduced.width = Math.max(1, Math.round(canvas.width * scale));
+          reduced.height = Math.max(1, Math.round(canvas.height * scale));
+          const reducedCtx = reduced.getContext('2d');
+          reducedCtx.imageSmoothingEnabled = true;
+          reducedCtx.imageSmoothingQuality = 'high';
+          reducedCtx.drawImage(canvas, 0, 0, reduced.width, reduced.height);
+          const candidate = await encodeCanvas(reduced, mime);
+          if(!candidate) break;
+          blob = candidate;
+          scale -= 0.06;
+        }
+      }
+      const extension = outputExtension(mime, file.name);
+      const base = file.name.replace(/\.[^.]+$/, '');
+      return { blob, name: `${base}.${extension}`, originalSize: file.size, size: blob.size, mime };
+    }
+
+    function renderCompressionResults(){
+      const root = $('#compressionResults');
+      root.innerHTML = state.compressionResults.length
+        ? state.compressionResults.map((result, index) => `
+          <div class="compression-result">
+            <span class="result-name" title="${escapeHtml(result.name)}">${escapeHtml(result.name)}</span>
+            <span>${formatBytes(result.originalSize)} → ${formatBytes(result.size)}</span>
+            <button class="mini" type="button" data-download-compressed="${index}">下载</button>
+          </div>`).join('')
+        : '';
+    }
+
+    async function compressFiles(files){
+      const format = $('#compressFormat').value;
+      const list = Array.from(files || []).filter((file) => file.type.startsWith('image/'));
+      if(!list.length) return;
+      const results = [];
+      for(const file of list){
+        const result = await compressImageFile(file, format);
+        if(result) results.push(result);
+      }
+      state.compressionResults = results;
+      renderCompressionResults();
+      if(results.length) alert(`已完成 ${results.length} 张图片处理，可在“图片压缩”区域下载。`);
+    }
+
+    async function compressSelectedAssets(){
+      const selected = state.assets.filter((asset) => state.selectedAssetIds.includes(asset.id));
+      if(!selected.length){
+        alert('请先在素材栏勾选要压缩的图片。');
+        return;
+      }
+      const files = [];
+      for(const asset of selected){
+        let blob = asset.blob;
+        if(!blob && asset.url) blob = await fetch(asset.url).then((response) => response.blob()).catch(() => null);
+        if(blob) files.push(new File([blob], asset.fileName || `${asset.name}.png`, { type: asset.mime || blob.type || 'image/png' }));
+      }
+      await compressFiles(files);
+    }
+
+    function downloadCompressed(result){
+      if(!result) return;
+      const url = URL.createObjectURL(result.blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = result.name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
     function escapeHtml(value){
       return String(value)
         .replaceAll('&', '&amp;')
@@ -2708,6 +2885,7 @@
       syncBoardInputs();
       renderAssetTray();
       renderWorkflowPresets();
+      renderCompressionResults();
       renderInspector();
       renderShortcutPanel();
       renderWorld();
@@ -2760,6 +2938,7 @@
           url,
           width: meta.width,
           height: meta.height,
+          mime: file.type,
           img: meta.img,
           blob: file
         };
@@ -3624,6 +3803,22 @@
     });
 
     $('#uploadBtn').addEventListener('click', () => fileInput.click());
+    $('#compressBtn').addEventListener('click', () => $('#compressInput').click());
+    $('#compressInput').addEventListener('change', async () => {
+      await compressFiles($('#compressInput').files);
+      $('#compressInput').value = '';
+    });
+    $('#compressAssetsBtn').addEventListener('click', compressSelectedAssets);
+    $('#downloadAllCompressedBtn').addEventListener('click', () => {
+      state.compressionResults.forEach((result, index) => {
+        setTimeout(() => downloadCompressed(result), index * 180);
+      });
+    });
+    $('#compressionResults').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-download-compressed]');
+      if(!button) return;
+      downloadCompressed(state.compressionResults[Number(button.dataset.downloadCompressed)]);
+    });
     $('#backupProjectBtn').addEventListener('click', backupProject);
     $('#restoreProjectBtn').addEventListener('click', () => $('#backupInput').click());
     $('#backupInput').addEventListener('change', async () => {
