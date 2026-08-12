@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Y-v04 图像拼接工作台</title>
+  <title>Y-v05 Studio 图像拼接工作台</title>
   <style>
     :root{
       --bg0:#07101d;
@@ -839,6 +839,89 @@
         margin:16px;
       }
     }
+
+    /* Y-v05 visual direction: restrained studio chrome and deeper canvas focus. */
+    :root{
+      --bg0:#05080d;
+      --bg1:#0a1019;
+      --bg2:#101a27;
+      --panel:rgba(13,19,28,.92);
+      --panel-2:rgba(17,25,36,.96);
+      --line:rgba(196,218,238,.11);
+      --line-2:rgba(196,218,238,.2);
+      --text:#f1f5f8;
+      --muted:#9aaabd;
+      --muted-2:#647487;
+      --accent:#9bdcff;
+      --accent-2:#e5b86f;
+      --good:#9de7c9;
+      --shadow:0 24px 70px rgba(0,0,0,.42);
+      --radius:12px;
+      --radius-sm:8px;
+    }
+    body{
+      background:
+        radial-gradient(circle at 50% -18%, rgba(155,220,255,.1), transparent 34%),
+        radial-gradient(circle at 100% 100%, rgba(229,184,111,.06), transparent 30%),
+        linear-gradient(135deg, #05080d 0%, #09111b 52%, #0d1723 100%);
+      letter-spacing:.01em;
+    }
+    .app{gap:12px;padding:12px}
+    .sidebar{
+      padding:14px;
+      gap:12px;
+      border-radius:14px;
+      border-color:rgba(196,218,238,.13);
+      background:linear-gradient(180deg, rgba(9,14,21,.97), rgba(7,12,18,.93));
+      box-shadow:0 20px 60px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.045);
+    }
+    .panel-dock{gap:10px}
+    .brand{padding:6px 2px 10px}
+    .mark{
+      width:38px;height:38px;border-radius:10px;
+      background:linear-gradient(145deg,#b9efff 0%,#79c9d9 42%,#d7a85e 100%);
+      box-shadow:0 10px 24px rgba(105,190,213,.16);
+    }
+    .mark::after{inset:9px;border-radius:6px;border-color:rgba(5,8,13,.58)}
+    .brand h1{font-size:16px;letter-spacing:.45px}
+    .brand p{font-size:11px;color:#8292a5}
+    .panel{
+      border-radius:11px;
+      padding:12px;
+      border-color:rgba(196,218,238,.1);
+      background:linear-gradient(180deg, rgba(18,27,39,.92), rgba(12,18,27,.94));
+      box-shadow:0 10px 28px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.035);
+    }
+    .panel:hover{border-color:rgba(155,220,255,.22);box-shadow:0 14px 34px rgba(0,0,0,.25)}
+    .panel-head{margin-bottom:10px;color:#e7eef4;font-size:12px}
+    .subtle{font-size:11px;color:#718296}
+    .segmented{gap:4px;padding:3px;border-radius:9px;background:rgba(0,0,0,.18);border-color:rgba(196,218,238,.09)}
+    .segmented button{padding:9px 10px;border-radius:7px;font-size:12px}
+    .segmented button.active{background:linear-gradient(135deg,rgba(155,220,255,.2),rgba(229,184,111,.1));box-shadow:inset 0 0 0 1px rgba(155,220,255,.22)}
+    .btn{border-radius:8px;padding:10px 12px;background:linear-gradient(135deg,rgba(155,220,255,.18),rgba(155,220,255,.07));border-color:rgba(155,220,255,.26);font-size:12px}
+    .btn.secondary{background:rgba(255,255,255,.035);border-color:rgba(196,218,238,.12)}
+    .btn.warn{background:rgba(184,103,93,.14);border-color:rgba(210,133,119,.22)}
+    .mini{padding:7px 9px;border-radius:7px;font-size:11px;border-color:rgba(196,218,238,.1);background:rgba(255,255,255,.035)}
+    .mini.active{background:rgba(155,220,255,.13);border-color:rgba(155,220,255,.28)}
+    .toolbar{margin:0 0 10px;padding:9px 13px;border-radius:11px;border-color:rgba(196,218,238,.12);background:rgba(8,13,20,.82);box-shadow:0 14px 42px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.05)}
+    .toolbar strong{font-size:13px;letter-spacing:.3px}
+    .toolbar span{font-size:11px;color:#8091a5}
+    .chip{padding:7px 9px;border-radius:7px;background:rgba(255,255,255,.035);border-color:rgba(196,218,238,.1);font-size:11px}
+    .chip strong{color:#eaf2f7}
+    .stage-shell{border-radius:14px;border-color:rgba(196,218,238,.12);background:radial-gradient(circle at 50% 0%,rgba(155,220,255,.07),transparent 28%),linear-gradient(180deg,rgba(7,12,19,.9),rgba(6,10,16,.98));box-shadow:0 24px 80px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.045)}
+    .asset-side{border-left:1px solid rgba(196,218,238,.08);padding-left:10px}
+    .asset-card{border-radius:9px;border-color:rgba(196,218,238,.1);background:linear-gradient(180deg,rgba(24,34,47,.92),rgba(15,23,33,.96));box-shadow:0 8px 18px rgba(0,0,0,.18)}
+    .asset-card:hover{border-color:rgba(155,220,255,.32);transform:translateY(-1px)}
+    .asset-thumb{border-radius:6px;background:#0a1119}
+    .control input[type="number"],.control input[type="text"],.control textarea,.control select{padding:9px 10px;border-radius:7px;background:rgba(4,8,13,.5);border-color:rgba(196,218,238,.12);font-size:12px}
+    .control label{font-size:11px;color:#8495a8}
+    .help-card{border-radius:11px;border-color:rgba(196,218,238,.14);background:rgba(10,16,24,.9);box-shadow:0 18px 50px rgba(0,0,0,.3)}
+    .board{border-radius:0;box-shadow:0 24px 70px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.04)}
+    .board-label{border-radius:5px;background:rgba(5,9,14,.7);font-size:10px;padding:6px 8px}
+    .slot{border-radius:0;border-width:1px;border-color:rgba(229,184,111,.72);background:rgba(255,255,255,.015)}
+    .slot .badge{border-radius:4px;font-size:10px;padding:5px 7px;background:rgba(5,9,14,.7)}
+    .selected{box-shadow:0 0 0 1px rgba(229,184,111,.98),0 0 0 5px rgba(229,184,111,.12)}
+    .grid{opacity:.38}
   </style>
 </head>
 <body>
@@ -847,7 +930,7 @@
       <div class="brand">
         <div class="mark"></div>
         <div>
-          <h1>Y-v04 图像拼接工作台</h1>
+          <h1>Y-v05 Studio</h1>
           <p>无限画布 + 固定工作流 · 浮动面板 · PNG 无损导出</p>
         </div>
       </div>
