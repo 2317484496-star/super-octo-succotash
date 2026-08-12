@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Y-v05 Studio 图像拼接工作台</title>
+  <title>Y-v06 Studio 图像拼接工作台</title>
   <style>
     :root{
       --bg0:#07101d;
@@ -459,6 +459,19 @@
     .board.selected{
       overflow:visible;
     }
+    .slot.multi-selected{
+      box-shadow:0 0 0 2px rgba(99,211,255,.95), 0 0 0 7px rgba(99,211,255,.12);
+    }
+    .align-guide{
+      position:absolute;
+      z-index:12;
+      pointer-events:none;
+      background:linear-gradient(90deg, transparent, rgba(255,203,107,.96), transparent);
+      filter:drop-shadow(0 0 4px rgba(255,203,107,.5));
+    }
+    .align-guide.vertical{top:0;bottom:0;width:2px;transform:translateX(-1px)}
+    .align-guide.horizontal{left:0;right:0;height:2px;transform:translateY(-1px);background:linear-gradient(0deg, transparent, rgba(255,203,107,.96), transparent)}
+    .workflow-focus #workflowPanel{border-color:rgba(117,240,197,.52);box-shadow:0 18px 48px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.05)}
     .handles{
       position:absolute;
       inset:0;
@@ -965,7 +978,7 @@
       <div class="brand">
         <div class="mark"></div>
         <div>
-          <h1>Y-v05 Studio</h1>
+          <h1>Y-v06 Studio</h1>
           <p>无限画布 + 固定工作流 · 浮动面板 · PNG 无损导出</p>
         </div>
       </div>
@@ -1137,9 +1150,11 @@
             <button class="mini active" id="autoFillBtn" type="button">自动填充</button>
             <button class="mini" id="shuffleBtn" type="button">重新排布</button>
             <button class="mini" id="alignAllBtn" type="button">全部归位</button>
+            <button class="mini active" id="smartLayoutBtn" type="button">智能自动排版</button>
             <button class="mini" id="addSlotBtn" type="button">新增框架</button>
             <button class="mini" id="removeSlotBtn" type="button">删除选中框架</button>
           </div>
+          <div class="footer-note" id="workflowSelectionStatus">框架多选：按住 Ctrl/Cmd 点击，可一起移动多个框架。</div>
           <div class="divider"></div>
           <div class="panel-head compact"><span>我的排版预设</span><span class="subtle">仅保存在本机</span></div>
           <div class="control">
@@ -1353,6 +1368,8 @@
       selectedAssetIds: [],
       compressionResults: [],
       selected: null,
+      multiSelected: [],
+      guideLines: [],
       camera: { x: 0, y: 0, zoom: 1 },
       dragging: null,
       lastScene: null,
@@ -1653,7 +1670,21 @@
 
     function setSelected(next){
       state.selected = next;
+      if(!next || next.kind !== 'slot') state.multiSelected = [];
       scheduleRender();
+    }
+
+    function setWorkflowSelection(ids){
+      state.multiSelected = [...new Set(ids)].filter((id) => state.workflowSlots.some((slot) => slot.id === id));
+      const last = state.multiSelected[state.multiSelected.length - 1];
+      state.selected = last ? { kind: 'slot', id: last } : null;
+    }
+
+    function selectedWorkflowSlots(){
+      const ids = state.multiSelected.length
+        ? state.multiSelected
+        : state.selected?.kind === 'slot' ? [state.selected.id] : [];
+      return state.workflowSlots.filter((slot) => ids.includes(slot.id));
     }
 
     function scheduleRender(){
@@ -2487,7 +2518,8 @@
       workspaceTitle.textContent = mode === 'free' ? '无限画布' : '固定工作流';
       workspaceSubtitle.textContent = mode === 'free'
         ? '把导出框放在任意位置，自由拖拽图片排布，然后按当前内容导出。'
-        : '先套用模板，再拖动框架、填入图片，最后一键拼接成目标画布。';
+        : '以导出框为中心编辑框架，自动排版、对齐拼接并一键导出。';
+      app.classList.toggle('workflow-focus', mode === 'workflow');
       if(mode === 'workflow' && state.workflowSlots.length === 0){
         rebuildWorkflowTemplate(state.workflowTemplate);
       }
@@ -2926,6 +2958,10 @@
       grid.style.backgroundSize = `${state.gridSize * zoom}px ${state.gridSize * zoom}px`;
       zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
       chipsBoard.textContent = state.mode === 'workflow' ? String(state.workflowSlots.length || 1) : '1';
+      const selectionStatus = document.getElementById('workflowSelectionStatus');
+      if(selectionStatus) selectionStatus.textContent = state.multiSelected.length > 1
+        ? `已选 ${state.multiSelected.length} 个框架，可一起移动；按住 Ctrl/Cmd 点击可继续增减。`
+        : '框架多选：按住 Ctrl/Cmd 点击，可一起移动多个框架。';
 
       const html = [];
       const boardClass = state.mode === 'workflow' ? 'board workflow' : 'board free';
@@ -2933,6 +2969,7 @@
         <div class="${boardClass} ${state.board.locked ? 'locked' : ''} ${state.selected?.kind === 'board' ? 'selected' : ''}" data-kind="board"
           style="left:${state.board.x}px;top:${state.board.y}px;width:${state.board.w}px;height:${state.board.h}px;">
           <div class="board-label">${state.mode === 'workflow' ? '固定流程导出框' : '自由导出框'}</div>
+          ${state.mode === 'workflow' ? renderWorkflowGuides() : ''}
           ${renderBoardSelectionHandles('board')}
           ${state.mode === 'workflow' ? renderWorkflowSlots() : ''}
         </div>
@@ -2998,8 +3035,9 @@
       state.workflowSlots.forEach((slot, index) => {
         const asset = getAssetById(slot.assetId);
         const selected = state.selected?.kind === 'slot' && state.selected.id === slot.id;
+        const multiSelected = state.multiSelected.includes(slot.id);
         parts.push(`
-          <div class="slot ${slot.locked ? 'locked' : ''} ${selected ? 'selected' : ''} ${asset ? '' : 'empty'}"
+          <div class="slot ${slot.locked ? 'locked' : ''} ${selected ? 'selected' : ''} ${multiSelected ? 'multi-selected' : ''} ${asset ? '' : 'empty'}"
             data-kind="slot" data-id="${slot.id}"
             style="left:${slot.x}px;top:${slot.y}px;width:${slot.w}px;height:${slot.h}px;">
             <div class="badge">框 ${index + 1}</div>
@@ -3009,6 +3047,10 @@
         `);
       });
       return parts.join('');
+    }
+
+    function renderWorkflowGuides(){
+      return state.guideLines.map((line) => `<div class="align-guide ${line.orientation}" style="${line.orientation === 'vertical' ? `left:${line.value}px` : `top:${line.value}px`};"></div>`).join('');
     }
 
     function renderSlotImage(slot, asset){
@@ -3371,6 +3413,60 @@
       scheduleRender();
     }
 
+    function smartLayoutSlots(){
+      if(!state.workflowSlots.length) return;
+      remember('smart-layout');
+      const count = state.workflowSlots.length;
+      const padding = Math.max(18, Math.round(Math.min(state.board.w, state.board.h) * .035));
+      const gap = Math.max(12, Math.round(Math.min(state.board.w, state.board.h) * .022));
+      const boardRatio = state.board.w / Math.max(1, state.board.h);
+      const cols = Math.max(1, Math.ceil(Math.sqrt(count * boardRatio)));
+      const rows = Math.max(1, Math.ceil(count / cols));
+      const cellW = Math.max(40, (state.board.w - padding * 2 - gap * (cols - 1)) / cols);
+      const cellH = Math.max(40, (state.board.h - padding * 2 - gap * (rows - 1)) / rows);
+      state.workflowSlots.forEach((slot, index) => {
+        const row = Math.floor(index / cols);
+        const col = index % cols;
+        const itemsInRow = Math.min(cols, count - row * cols);
+        const rowWidth = itemsInRow * cellW + Math.max(0, itemsInRow - 1) * gap;
+        const rowOffset = (state.board.w - rowWidth) / 2;
+        slot.x = round(rowOffset + col * (cellW + gap));
+        slot.y = round(padding + row * (cellH + gap));
+        slot.w = round(cellW);
+        slot.h = round(cellH);
+        slot.scale = 100;
+        slot.ox = 0;
+        slot.oy = 0;
+      });
+      state.multiSelected = [];
+      state.selected = null;
+      state.guideLines = [];
+      scheduleRender();
+    }
+
+    function alignmentGuidesFor(slot, x, y){
+      const threshold = 10;
+      const verticalTargets = [0, state.board.w / 2, state.board.w];
+      const horizontalTargets = [0, state.board.h / 2, state.board.h];
+      state.workflowSlots.forEach((other) => {
+        if(other.id === slot.id || state.multiSelected.includes(other.id)) return;
+        verticalTargets.push(other.x, other.x + other.w / 2, other.x + other.w);
+        horizontalTargets.push(other.y, other.y + other.h / 2, other.y + other.h);
+      });
+      const xCandidates = [x, x + slot.w / 2, x + slot.w];
+      const yCandidates = [y, y + slot.h / 2, y + slot.h];
+      const lines = [];
+      for(const candidate of xCandidates){
+        const target = verticalTargets.find((value) => Math.abs(candidate - value) <= threshold);
+        if(target !== undefined){ lines.push({ orientation: 'vertical', value: target }); break; }
+      }
+      for(const candidate of yCandidates){
+        const target = horizontalTargets.find((value) => Math.abs(candidate - value) <= threshold);
+        if(target !== undefined){ lines.push({ orientation: 'horizontal', value: target }); break; }
+      }
+      return lines;
+    }
+
     function clearWorkflowSlot(slotId){
       const slot = state.workflowSlots.find((s) => s.id === slotId);
       if(slot){
@@ -3625,14 +3721,32 @@
         const id = target.dataset.id;
         const slot = state.workflowSlots.find((it) => it.id === id);
         if(!slot) return;
-        setSelected({ kind: 'slot', id });
+        const multiKey = event.ctrlKey || event.metaKey;
+        if(multiKey){
+          const next = state.multiSelected.includes(id)
+            ? state.multiSelected.filter((selectedId) => selectedId !== id)
+            : [...state.multiSelected, id];
+          setWorkflowSelection(next);
+          state.guideLines = [];
+          event.preventDefault();
+          scheduleRender();
+          return;
+        }
+        if(!state.multiSelected.includes(id)) setWorkflowSelection([id]);
+        else state.selected = { kind: 'slot', id };
         if(slot.locked) return;
+        const selectedSlots = selectedWorkflowSlots().filter((item) => !item.locked);
         state.dragging = {
           type: 'move',
-          kind: 'slot',
+          kind: selectedSlots.length > 1 ? 'multiSlots' : 'slot',
           id,
           start: { x: worldPos.x, y: worldPos.y },
           origin: { x: slot.x, y: slot.y, w: slot.w, h: slot.h, ox: slot.ox || 0, oy: slot.oy || 0 },
+          origins: selectedSlots.reduce((map, item) => {
+            map[item.id] = { x: item.x, y: item.y, w: item.w, h: item.h };
+            return map;
+          }, {}),
+          ids: selectedSlots.map((item) => item.id),
           before: getSceneSnapshot(),
           pointerId: event.pointerId
         };
@@ -3720,6 +3834,29 @@
         );
         slot.x = round(snapped.x);
         slot.y = round(snapped.y);
+        state.guideLines = alignmentGuidesFor(slot, slot.x, slot.y);
+        scheduleRender();
+        return;
+      }
+
+      if(drag.type === 'move' && drag.kind === 'multiSlots'){
+        const primary = state.workflowSlots.find((slot) => slot.id === drag.id);
+        if(!primary) return;
+        const primaryOrigin = drag.origins[primary.id];
+        if(!primaryOrigin) return;
+        const candidateX = round(primaryOrigin.x + dx);
+        const candidateY = round(primaryOrigin.y + dy);
+        const snapped = snapWorkflowSlot(primary, candidateX, candidateY, primary.w, primary.h, 'move');
+        const snapDx = snapped.x - primaryOrigin.x;
+        const snapDy = snapped.y - primaryOrigin.y;
+        drag.ids.forEach((id) => {
+          const slot = state.workflowSlots.find((item) => item.id === id);
+          const origin = drag.origins[id];
+          if(!slot || !origin || slot.locked) return;
+          slot.x = round(origin.x + snapDx);
+          slot.y = round(origin.y + snapDy);
+        });
+        state.guideLines = alignmentGuidesFor(primary, primary.x, primary.y);
         scheduleRender();
         return;
       }
@@ -3913,6 +4050,7 @@
       if(!drag || drag.pointerId !== event.pointerId) return;
       state.dragging = null;
       if(drag.type !== 'pan') rememberCompleted(drag.before, drag.type);
+      state.guideLines = [];
       scheduleRender();
     }
 
@@ -4092,6 +4230,7 @@
       scheduleRender();
     });
     $('#alignAllBtn').addEventListener('click', alignAllSlots);
+    $('#smartLayoutBtn').addEventListener('click', smartLayoutSlots);
     $('#addSlotBtn').addEventListener('click', addWorkflowSlot);
     $('#removeSlotBtn').addEventListener('click', removeSelectedWorkflowSlot);
     $('#addTextBtn').addEventListener('click', addTextItem);
