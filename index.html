@@ -1070,12 +1070,6 @@
             <button class="mini" id="lockBoardBtn" type="button">锁定导出框</button>
             <button class="mini" id="addTextBtn" type="button">添加文字</button>
           </div>
-          <div class="row wrap">
-            <button class="mini" data-add-annotation="rect" type="button">矩形标注</button>
-            <button class="mini" data-add-annotation="ellipse" type="button">圆形标注</button>
-            <button class="mini" data-add-annotation="arrow" type="button">箭头标注</button>
-            <button class="mini" data-add-annotation="line" type="button">直线标注</button>
-          </div>
           <div class="control">
             <label>网格尺寸</label>
             <input type="range" min="4" max="120" step="1" id="gridSize" />
@@ -2887,29 +2881,6 @@
         return;
       }
 
-      if(state.selected.kind === 'annotation'){
-        selectedType.textContent = '图片标注';
-        inspector.innerHTML = `
-          <div class="tag"><strong>${selected.type === 'rect' ? '矩形' : selected.type === 'ellipse' ? '圆形' : selected.type === 'arrow' ? '箭头' : '直线'}标注</strong></div>
-          <div class="row">
-            <div class="control grow"><label>X</label><input type="number" data-prop="x" value="${round(selected.x)}" /></div>
-            <div class="control grow"><label>Y</label><input type="number" data-prop="y" value="${round(selected.y)}" /></div>
-          </div>
-          <div class="row">
-            <div class="control grow"><label>宽</label><input type="number" min="10" data-prop="w" value="${round(selected.w)}" /></div>
-            <div class="control grow"><label>高</label><input type="number" min="10" data-prop="h" value="${round(selected.h)}" /></div>
-          </div>
-          <div class="row">
-            <div class="control grow"><label>颜色</label><input type="color" data-prop="color" value="${selected.color}" /></div>
-            <div class="control grow"><label>线宽</label><input type="number" min="1" max="40" data-prop="strokeWidth" value="${selected.strokeWidth}" /></div>
-          </div>
-          <div class="row wrap">
-            <button class="mini" data-act="lock" type="button">${selected.locked ? '解锁' : '锁定'}</button>
-            <button class="mini" data-act="delete" type="button">删除标注</button>
-          </div>`;
-        return;
-      }
-
       if(state.selected.kind === 'slot'){
         selectedType.textContent = '工作流框架';
         const asset = getAssetById(selected.assetId);
@@ -2988,25 +2959,6 @@
             style="left:${item.x}px;top:${item.y}px;width:${item.w}px;height:${item.h}px;color:${escapeHtml(item.color)};font-size:${item.fontSize}px;text-align:${item.align};">
             <div class="text-content">${escapeHtml(item.text)}</div>
             ${renderBoardSelectionHandles('text', item.id)}
-          </div>
-        `);
-      }
-
-      for(const item of state.annotations){
-        const selected = state.selected?.kind === 'annotation' && state.selected.id === item.id;
-        const line = `stroke="${escapeHtml(item.color)}" stroke-width="${item.strokeWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
-        const shape = item.type === 'rect'
-          ? `<rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" ${line}/>`
-          : item.type === 'ellipse'
-            ? `<ellipse cx="${item.x + item.w / 2}" cy="${item.y + item.h / 2}" rx="${Math.abs(item.w / 2)}" ry="${Math.abs(item.h / 2)}" ${line}/>`
-            : `<line x1="${item.x}" y1="${item.y}" x2="${item.x + item.w}" y2="${item.y + item.h}" ${line}${item.type === 'arrow' ? ' marker-end="url(#annotationArrow)"' : ''}/>`;
-        html.push(`
-          <div class="annotation ${selected ? 'selected' : ''}" data-kind="annotation" data-id="${item.id}" style="left:${item.x}px;top:${item.y}px;width:${Math.max(item.w, 10)}px;height:${Math.max(item.h, 10)}px;">
-            <svg class="annotation-svg" viewBox="0 0 ${Math.max(Math.abs(item.w), 1)} ${Math.max(Math.abs(item.h), 1)}" preserveAspectRatio="none">
-              <defs><marker id="annotationArrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="${escapeHtml(item.color)}"/></marker></defs>
-              ${shape.replaceAll(`x="${item.x}"`, 'x="0"').replaceAll(`y="${item.y}"`, 'y="0"').replaceAll(`x2="${item.x + item.w}"`, `x2="${item.w}"`).replaceAll(`y2="${item.y + item.h}"`, `y2="${item.h}"`).replaceAll(`cx="${item.x + item.w / 2}"`, `cx="${item.w / 2}"`).replaceAll(`cy="${item.y + item.h / 2}"`, `cy="${item.h / 2}"`)}
-            </svg>
-            ${renderBoardSelectionHandles('annotation', item.id)}
           </div>
         `);
       }
@@ -3533,10 +3485,6 @@
         ctx.restore();
       }
 
-      for(const item of state.annotations){
-        drawAnnotationToCanvas(ctx, item, scaleX, scaleY, -board.x * scaleX, -board.y * scaleY);
-      }
-
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
       if(!blob){
         alert('导出失败，请重试。');
@@ -3560,33 +3508,6 @@
       ctx.filter = `brightness(${brightness}%) contrast(${contrast + sharpness * .12}%) saturate(${saturation}%)${warmth}`;
     }
 
-    function drawAnnotationToCanvas(ctx, item, scaleX, scaleY, offsetX, offsetY){
-      const x = item.x * scaleX + offsetX;
-      const y = item.y * scaleY + offsetY;
-      const w = item.w * scaleX;
-      const h = item.h * scaleY;
-      ctx.save();
-      ctx.strokeStyle = item.color || '#ffca6b';
-      ctx.lineWidth = (item.strokeWidth || 6) * Math.max(scaleX, scaleY);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      if(item.type === 'rect') ctx.rect(x, y, w, h);
-      else if(item.type === 'ellipse') ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
-      else { ctx.moveTo(x, y); ctx.lineTo(x + w, y + h); }
-      ctx.stroke();
-      if(item.type === 'arrow'){
-        const angle = Math.atan2(h, w);
-        const size = 16 * Math.max(scaleX, scaleY);
-        ctx.beginPath();
-        ctx.moveTo(x + w, y + h);
-        ctx.lineTo(x + w - size * Math.cos(angle - Math.PI / 6), y + h - size * Math.sin(angle - Math.PI / 6));
-        ctx.moveTo(x + w, y + h);
-        ctx.lineTo(x + w - size * Math.cos(angle + Math.PI / 6), y + h - size * Math.sin(angle + Math.PI / 6));
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
 
     function getBoardCenter(){
       return {
@@ -3700,26 +3621,6 @@
         return;
       }
 
-      if(target?.dataset.kind === 'annotation'){
-        const id = target.dataset.id;
-        const item = state.annotations.find((it) => it.id === id);
-        if(!item) return;
-        setSelected({ kind: 'annotation', id });
-        if(item.locked) return;
-        state.dragging = {
-          type: 'move',
-          kind: 'annotation',
-          id,
-          start: { x: worldPos.x, y: worldPos.y },
-          origin: { x: item.x, y: item.y, w: item.w, h: item.h },
-          before: getSceneSnapshot(),
-          pointerId: event.pointerId
-        };
-        viewport.setPointerCapture(event.pointerId);
-        event.preventDefault();
-        return;
-      }
-
       if(target?.dataset.kind === 'slot'){
         const id = target.dataset.id;
         const slot = state.workflowSlots.find((it) => it.id === id);
@@ -3791,15 +3692,6 @@
 
       if(drag.type === 'move' && drag.kind === 'text'){
         const item = state.textItems.find((it) => it.id === drag.id);
-        if(!item || item.locked) return;
-        item.x = round(drag.origin.x + dx);
-        item.y = round(drag.origin.y + dy);
-        scheduleRender();
-        return;
-      }
-
-      if(drag.type === 'move' && drag.kind === 'annotation'){
-        const item = state.annotations.find((it) => it.id === drag.id);
         if(!item || item.locked) return;
         item.x = round(drag.origin.x + dx);
         item.y = round(drag.origin.y + dy);
@@ -3978,20 +3870,6 @@
           item.y = round(y);
           item.w = round(w);
           item.h = round(h);
-          scheduleRender();
-          return;
-        }
-
-        if(drag.kind === 'annotation'){
-          const item = state.annotations.find((it) => it.id === drag.id);
-          if(!item || item.locked) return;
-          let { x, y, w, h } = drag.origin;
-          const minSize = 10;
-          if(drag.handle.includes('e')) w = Math.max(minSize, drag.origin.w + deltaX);
-          if(drag.handle.includes('s')) h = Math.max(minSize, drag.origin.h + deltaY);
-          if(drag.handle.includes('w')){ const nextW = Math.max(minSize, drag.origin.w - deltaX); x = drag.origin.x + drag.origin.w - nextW; w = nextW; }
-          if(drag.handle.includes('n')){ const nextH = Math.max(minSize, drag.origin.h - deltaY); y = drag.origin.y + drag.origin.h - nextH; h = nextH; }
-          item.x = round(x); item.y = round(y); item.w = round(w); item.h = round(h);
           scheduleRender();
           return;
         }
@@ -4384,6 +4262,11 @@
         const item = getSelectedObject();
         if(item && (state.selected.kind === 'freeItem' || state.selected.kind === 'slot')){
           remember('reset-adjustments');
+          if(state.selected.kind === 'slot'){
+            item.scale = 100;
+            item.ox = 0;
+            item.oy = 0;
+          }
           item.brightness = 100;
           item.contrast = 100;
           item.saturation = 100;
@@ -4399,10 +4282,6 @@
       if(act === 'board-focus') focusSelection();
     });
 
-    document.addEventListener('click', (event) => {
-      const button = event.target.closest('[data-add-annotation]');
-      if(button) addAnnotation(button.dataset.addAnnotation);
-    });
 
     $('#shortcutPanel').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-shortcut-edit]');
