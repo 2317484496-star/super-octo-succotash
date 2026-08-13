@@ -4118,6 +4118,19 @@
       scheduleRender();
     }
 
+    function zoomAtViewportCenter(delta){
+      const rect = viewport.getBoundingClientRect();
+      const centerWorld = {
+        x: rect.width / (2 * state.camera.zoom) - state.camera.x,
+        y: rect.height / (2 * state.camera.zoom) - state.camera.y
+      };
+      const nextZoom = clamp(state.camera.zoom * (delta < 0 ? 1.08 : 0.92), 0.08, 12);
+      state.camera.zoom = nextZoom;
+      state.camera.x = rect.width / (2 * nextZoom) - centerWorld.x;
+      state.camera.y = rect.height / (2 * nextZoom) - centerWorld.y;
+      scheduleRender();
+    }
+
     function clearScene(){
       if(!confirm('确定要清空当前场景吗？素材不会被删除，但画布上的排布会重置。')) return;
       remember('clear-scene');
@@ -4163,7 +4176,7 @@
       const deltaX = event.deltaX * unit;
       const deltaY = event.deltaY * unit;
       if(event.ctrlKey || event.metaKey){
-        zoomAt(event.clientX, event.clientY, deltaY);
+        zoomAtViewportCenter(deltaY);
         return;
       }
       const horizontal = event.shiftKey ? (deltaY || deltaX) : deltaX;
