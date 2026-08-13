@@ -3022,7 +3022,7 @@
 
     function renderWorld(){
       const zoom = state.camera.zoom;
-      world.style.transform = `translate(${state.camera.x}px, ${state.camera.y}px) scale(${zoom})`;
+      world.style.transform = `translate(${state.camera.x * zoom}px, ${state.camera.y * zoom}px) scale(${zoom})`;
       world.style.setProperty('--ui-scale', `${1 / zoom}`);
       grid.style.transform = `translate(${state.camera.x * zoom}px, ${state.camera.y * zoom}px) scale(${zoom})`;
       grid.style.backgroundSize = `${state.gridSize * zoom}px ${state.gridSize * zoom}px`;
@@ -4119,15 +4119,8 @@
     }
 
     function zoomAtViewportCenter(delta){
-      const rect = viewport.getBoundingClientRect();
-      const centerWorld = {
-        x: rect.width / (2 * state.camera.zoom) - state.camera.x,
-        y: rect.height / (2 * state.camera.zoom) - state.camera.y
-      };
       const nextZoom = clamp(state.camera.zoom * (delta < 0 ? 1.08 : 0.92), 0.08, 12);
       state.camera.zoom = nextZoom;
-      state.camera.x = rect.width / (2 * nextZoom) - centerWorld.x;
-      state.camera.y = rect.height / (2 * nextZoom) - centerWorld.y;
       scheduleRender();
     }
 
