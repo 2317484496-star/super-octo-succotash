@@ -1372,9 +1372,10 @@
       flex:1;
       min-width:0;
     }
-    .range-num{
+    .range-line input[type="number"].range-num{
       width:58px;
-      flex:none;
+      flex:0 0 auto;
+      min-width:0;
       padding:4px 8px;
       border-radius:8px;
       background:rgba(9,16,25,.82);
@@ -1394,11 +1395,11 @@
       -webkit-appearance:none;
       margin:0;
     }
-    .range-num:hover{
+    .range-line input[type="number"].range-num:hover{
       border-color:rgba(121,198,255,.5);
       background:rgba(11,19,30,.9);
     }
-    .range-num:focus{
+    .range-line input[type="number"].range-num:focus{
       border-color:rgba(234,193,126,.75);
       background:rgba(14,19,28,.94);
       box-shadow:0 0 0 3px rgba(234,193,126,.18), inset 0 1px 3px rgba(0,0,0,.35);
