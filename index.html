@@ -1366,14 +1366,14 @@
     .range-line{
       display:flex;
       align-items:center;
-      gap:10px;
+      gap:8px;
     }
     .range-line input[type="range"]{
       flex:1;
       min-width:0;
     }
     .range-num{
-      width:72px;
+      width:58px;
       flex:none;
       padding:4px 8px;
       border-radius:8px;
@@ -3849,6 +3849,8 @@
       const value = Number(input.value || min);
       const pct = clamp(((value - min) / Math.max(1, max - min)) * 100, 0, 100);
       input.style.setProperty('--range-progress', `${pct}%`);
+      // 数字框已挂载的滑块：数字框即唯一数值反馈与精调入口，不再叠加拖动气泡
+      if(input._vnum) return;
       let bubble = input._vbubble;
       if(!bubble){
         bubble = document.createElement('span');
