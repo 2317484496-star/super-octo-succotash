@@ -1236,9 +1236,9 @@
     }
     .slot.multi-selected,.free-item.multi-selected{
       box-shadow:
-        0 0 0 1px rgba(121,198,255,.95),
-        0 0 0 5px rgba(121,198,255,.16),
-        0 18px 46px rgba(0,0,0,.35);
+        0 0 0 1px rgba(121,198,255,.78),
+        0 0 0 3px rgba(121,198,255,.10),
+        0 16px 40px rgba(0,0,0,.30);
     }
     .slot{
       border-width:2px;
@@ -1353,6 +1353,35 @@
       box-shadow:0 0 0 6px rgba(121,198,255,.28), 0 6px 18px rgba(0,0,0,.55);
     }
     .control input[type="range"]:active::-webkit-slider-thumb{transform:scale(1.4)}
+    .range-line{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .range-line input[type="range"]{
+      flex:1;
+      min-width:0;
+    }
+    .range-num{
+      width:72px;
+      flex:none;
+      padding:4px 8px;
+      border-radius:8px;
+      background:rgba(9,16,25,.82);
+      border:1px solid rgba(121,198,255,.22);
+      color:#dff1ff;
+      font-size:12px;
+      font-variant-numeric:tabular-nums;
+      text-align:right;
+      outline:none;
+      transition:border-color .16s var(--ease-out), box-shadow .18s var(--ease-out);
+    }
+    .range-num:focus{
+      border-color:rgba(234,193,126,.75);
+      box-shadow:0 0 0 3px rgba(234,193,126,.18);
+    }
+    .range-num:hover{border-color:rgba(121,198,255,.5)}
+    .range-line:has(.range-num) input[type="range"]{margin:2px 0}
     .range-bubble{
       position:absolute;
       min-width:48px;
@@ -1457,7 +1486,13 @@
             <button class="mini" id="restoreProjectBtn" type="button">恢复项目</button>
           </div>
           <div class="divider"></div>
-          <div class="panel-head compact"><span>图片压缩</span><span class="subtle">目标 19.8MB</span></div>
+          <div class="panel-head compact"><span>图片压缩</span><span class="subtle">可自定义目标大小</span></div>
+          <div class="row">
+            <div class="control grow">
+              <label>目标大小 (MB)</label>
+              <input type="number" id="compressTarget" min="0.1" max="1024" step="0.1" value="19.8" />
+            </div>
+          </div>
           <div class="row">
             <div class="control grow">
               <label>输出格式</label>
@@ -3167,10 +3202,18 @@
       return new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
     }
 
+    function getCompressTargetBytes(){
+      const el = document.getElementById('compressTarget');
+      const v = el ? Number(el.value) : NaN;
+      const mb = (Number.isFinite(v) && v > 0) ? v : 19.8;
+      return mb * 1024 * 1024;
+    }
+
     async function compressImageFile(file, format){
       const originalMime = file.type || 'image/png';
       const mime = format === 'auto' ? originalMime : format;
-      const needsCompression = file.size > 19.8 * 1024 * 1024 || format !== 'auto';
+      const target = getCompressTargetBytes();
+      const needsCompression = file.size > target || format !== 'auto';
       if(!needsCompression) return { blob: file, name: file.name, originalSize: file.size, size: file.size, mime };
       const image = await loadBitmap(file);
       if(!image) return null;
@@ -3187,7 +3230,6 @@
       ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
       if(image.close) image.close();
 
-      const target = 19.8 * 1024 * 1024;
       let quality = mime === 'image/png' ? undefined : 0.92;
       let blob = await encodeCanvas(canvas, mime, quality);
       if(!blob) return null;
@@ -3412,6 +3454,7 @@
             <button class="mini" data-act="clear-slot" type="button">清空槽位</button>
           </div>`;
       }
+      enhanceRangeControls();
     }
 
     function renderWorld(){
@@ -3586,6 +3629,43 @@
       $('#edgeSnapTopToggle strong').textContent = state.edgeSnap ? '开' : '关';
       document.querySelectorAll('input[type="range"]').forEach((input) => {
         updateRangeProgress(input);
+      });
+    }
+
+    function enhanceRangeControls(){
+      if(!state.selected) return;
+      const panel = document.getElementById('inspector');
+      if(!panel) return;
+      const ranges = panel.querySelectorAll('input[type="range"][data-prop]');
+      ranges.forEach((range) => {
+        if(range.dataset.enhanced) return;
+        range.dataset.enhanced = '1';
+        const wrap = document.createElement('div');
+        wrap.className = 'range-line';
+        range.parentNode.insertBefore(wrap, range);
+        const num = document.createElement('input');
+        num.type = 'number';
+        num.className = 'range-num';
+        num.min = range.min;
+        num.max = range.max;
+        num.step = range.step || '1';
+        num.value = range.value;
+        num.setAttribute('aria-label', `${range.dataset.prop} 精确数值`);
+        wrap.appendChild(range);
+        wrap.appendChild(num);
+        num.addEventListener('input', () => {
+          const n = sanitizeNumber(num.value, Number(range.value) || 0);
+          const min = Number(range.min || -Infinity);
+          const max = Number(range.max || Infinity);
+          const clamped = clamp(n, min, max);
+          num.value = clamped;
+          range.value = clamped;
+          updateRangeProgress(range);
+          range.dispatchEvent(new Event('input'));
+        });
+        range.addEventListener('input', () => {
+          num.value = range.value;
+        });
       });
     }
 
