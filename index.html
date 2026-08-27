@@ -349,12 +349,14 @@
       opacity:.65;
       transform-origin:0 0;
       pointer-events:none;
+      will-change:transform;
     }
     .world{
       position:absolute;
       inset:0;
       transform-origin:0 0;
       pointer-events:none;
+      will-change:transform;
       --ui-scale:1;
     }
     .board, .free-item, .slot{
@@ -471,6 +473,12 @@
     }
     .align-guide.vertical{top:0;bottom:0;width:2px;transform:translateX(-1px)}
     .align-guide.horizontal{left:0;right:0;height:2px;transform:translateY(-1px);background:linear-gradient(0deg, transparent, rgba(255,203,107,.96), transparent)}
+    .board-guides{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      z-index:12;
+    }
     .handles{
       position:absolute;
       inset:0;
@@ -2173,7 +2181,7 @@
       requestAnimationFrame(() => {
         state.renderQueued = false;
         if(state.dragging){
-          renderWorld();
+          renderInteractionFast();
         }else{
           render();
         }
@@ -2339,7 +2347,13 @@
       }else if(state.selected?.kind === 'slot'){
         sel.scale = next;
       }
-      options.live ? renderWorld() : scheduleRender();
+      if(options.live && state.selected?.kind === 'board'){
+        renderWorld();
+      }else if(options.live){
+        patchSelectedWorldItem();
+      }else{
+        scheduleRender();
+      }
     }
 
     function cloneAsset(asset){
@@ -3081,13 +3095,14 @@
       $('#workflowRatio').value = state.board.ratio;
       $('#workflowOrientation').value = state.board.orientation;
       $('#workflowScale').value = state.board.sizeScale;
+      syncStaticRangeNumbers();
     }
 
     function updateCamera(x, y, zoom){
       state.camera.x = x;
       state.camera.y = y;
       state.camera.zoom = clamp(zoom, 0.08, 12);
-      scheduleRender();
+      applyCamera();
     }
 
     function fitBoardToViewport(){
@@ -3097,7 +3112,7 @@
       state.camera.zoom = clamp(zoom, 0.08, 12);
       state.camera.x = rect.width / (2 * state.camera.zoom) - (state.board.x + state.board.w / 2);
       state.camera.y = rect.height / (2 * state.camera.zoom) - (state.board.y + state.board.h / 2);
-      scheduleRender();
+      applyCamera();
     }
 
     function placeFreeItem(asset, worldPos, options = {}){
@@ -3457,7 +3472,7 @@
       enhanceRangeControls();
     }
 
-    function renderWorld(){
+    function applyCamera(){
       const zoom = state.camera.zoom;
       world.style.transform = `translate(${state.camera.x * zoom}px, ${state.camera.y * zoom}px) scale(${zoom})`;
       world.style.setProperty('--ui-scale', `${1 / zoom}`);
@@ -3469,6 +3484,113 @@
       if(selectionStatus) selectionStatus.textContent = state.multiSelected.length > 1
         ? `已选 ${state.multiSelected.length} 个框架，可一起移动；按住 Ctrl/Cmd 点击可继续增减。`
         : '框架多选：按住 Ctrl/Cmd 点击，可一起移动多个框架。';
+    }
+
+    function findWorldNode(kind, id){
+      if(id) return world.querySelector(`[data-kind="${kind}"][data-id="${id}"]`);
+      return world.querySelector(`[data-kind="${kind}"]`);
+    }
+
+    function syncWorkflowGuides(){
+      const host = world.querySelector('.board-guides');
+      if(!host) return;
+      const guideHtml = state.guideLines.length ? renderWorkflowGuides() : '';
+      if(host._lastGuides === guideHtml) return;
+      host._lastGuides = guideHtml;
+      host.innerHTML = guideHtml;
+    }
+
+    function patchWorldNode(node, x, y){
+      if(!node) return;
+      node.style.left = `${x}px`;
+      node.style.top = `${y}px`;
+    }
+
+    function patchWorldRect(node, x, y, w, h){
+      if(!node) return;
+      node.style.left = `${x}px`;
+      node.style.top = `${y}px`;
+      node.style.width = `${w}px`;
+      node.style.height = `${h}px`;
+    }
+
+    function patchSelectedWorldItem(){
+      const sel = state.selected;
+      if(!sel) return;
+      const kind = sel.kind === 'freeItem' ? 'freeItem' : sel.kind === 'text' ? 'text' : sel.kind === 'slot' ? 'slot' : null;
+      if(!kind) return;
+      const node = findWorldNode(kind, sel.id);
+      if(!node) return;
+      if(kind === 'freeItem'){
+        const item = state.freeItems.find((it) => it.id === sel.id);
+        const asset = item && getAssetById(item.assetId);
+        if(!item || !asset) return;
+        node.innerHTML = `${renderFreeImage(item, asset)}
+            <div class="caption">${escapeHtml(asset.name)}</div>
+            ${renderBoardSelectionHandles('freeItem', item.id)}`;
+      }else if(kind === 'text'){
+        const item = state.textItems.find((it) => it.id === sel.id);
+        if(!item) return;
+        node.innerHTML = `<div class="text-content">${escapeHtml(item.text)}</div>
+            ${renderBoardSelectionHandles('text', item.id)}`;
+      }else if(kind === 'slot'){
+        const slot = state.workflowSlots.find((s) => s.id === sel.id);
+        if(!slot) return;
+        const asset = getAssetById(slot.assetId);
+        const index = state.workflowSlots.indexOf(slot);
+        node.innerHTML = `<div class="badge">框 ${index + 1}</div>
+            ${asset ? renderSlotImage(slot, asset) : ''}
+            ${renderBoardSelectionHandles('slot', slot.id)}`;
+      }
+    }
+
+    function renderInteractionFast(){
+      const drag = state.dragging;
+      if(!drag) return;
+      if(state.dragDirty){
+        state.dragDirty = false;
+        renderWorld();
+        return;
+      }
+      applyCamera();
+      if(drag.type === 'pan') return;
+      if(drag.type === 'move'){
+        if(drag.kind === 'board'){
+          patchWorldNode(findWorldNode('board'), state.board.x, state.board.y);
+        }else if(drag.kind === 'freeItem'){
+          const item = state.freeItems.find((it) => it.id === drag.id);
+          if(item) patchWorldNode(findWorldNode('freeItem', item.id), item.x, item.y);
+        }else if(drag.kind === 'text'){
+          const item = state.textItems.find((it) => it.id === drag.id);
+          if(item) patchWorldNode(findWorldNode('text', item.id), item.x, item.y);
+        }else if(drag.kind === 'slot' || drag.kind === 'multiSlots'){
+          (drag.kind === 'multiSlots' ? (drag.ids || []) : [drag.id]).forEach((id) => {
+            const slot = state.workflowSlots.find((it) => it.id === id);
+            if(slot) patchWorldNode(findWorldNode('slot', slot.id), slot.x, slot.y);
+          });
+          syncWorkflowGuides();
+        }
+        return;
+      }
+      if(drag.type === 'resize'){
+        if(drag.kind === 'board'){
+          patchWorldRect(findWorldNode('board'), state.board.x, state.board.y, state.board.w, state.board.h);
+        }else if(drag.kind === 'freeItem'){
+          const item = state.freeItems.find((it) => it.id === drag.id);
+          if(item) patchSelectedWorldItem();
+        }else if(drag.kind === 'text'){
+          const item = state.textItems.find((it) => it.id === drag.id);
+          if(item) patchWorldRect(findWorldNode('text', item.id), item.x, item.y, item.w, item.h);
+        }else if(drag.kind === 'slot'){
+          patchSelectedWorldItem();
+        }
+        return;
+      }
+      renderWorld();
+    }
+
+    function renderWorld(){
+      applyCamera();
 
       const html = [];
       const boardClass = state.mode === 'workflow' ? 'board workflow' : 'board free';
@@ -3476,7 +3598,7 @@
         <div class="${boardClass} ${state.board.locked ? 'locked' : ''} ${state.selected?.kind === 'board' ? 'selected' : ''}" data-kind="board"
           style="left:${state.board.x}px;top:${state.board.y}px;width:${state.board.w}px;height:${state.board.h}px;">
           <div class="board-label">${state.mode === 'workflow' ? '固定流程导出框' : '自由导出框'}</div>
-          ${state.mode === 'workflow' ? renderWorkflowGuides() : ''}
+          ${state.mode === 'workflow' ? `<div class="board-guides">${state.guideLines.length ? renderWorkflowGuides() : ''}</div>` : ''}
           ${renderBoardSelectionHandles('board')}
           ${state.mode === 'workflow' ? renderWorkflowSlots() : ''}
         </div>
@@ -3630,47 +3752,70 @@
       document.querySelectorAll('input[type="range"]').forEach((input) => {
         updateRangeProgress(input);
       });
+      syncStaticRangeNumbers();
+    }
+
+    function attachRangeNumberInput(range, label){
+      if(!range || range.dataset.enhanced) return;
+      range.dataset.enhanced = '1';
+      const wrap = document.createElement('div');
+      wrap.className = 'range-line';
+      range.parentNode.insertBefore(wrap, range);
+      const num = document.createElement('input');
+      num.type = 'number';
+      num.className = 'range-num';
+      num.min = range.min;
+      num.max = range.max;
+      num.step = range.step || '1';
+      num.value = range.value;
+      num.setAttribute('aria-label', `${label || range.dataset.prop || '数值'} 精确数值`);
+      wrap.appendChild(range);
+      wrap.appendChild(num);
+      range._vnum = num;
+      num.addEventListener('input', () => {
+        const n = sanitizeNumber(num.value, Number(range.value) || 0);
+        const min = Number(range.min || -Infinity);
+        const max = Number(range.max || Infinity);
+        const clamped = clamp(n, min, max);
+        num.value = clamped;
+        range.value = clamped;
+        updateRangeProgress(range);
+        range.dispatchEvent(new Event('input'));
+      });
+      range.addEventListener('input', () => {
+        if(document.activeElement !== num) num.value = range.value;
+      });
+    }
+
+    function syncStaticRangeNumbers(){
+      ['#boardScale', '#gridSize', '#workflowScale'].forEach((sel) => {
+        const range = document.querySelector(sel);
+        if(range && range._vnum) range._vnum.value = range.value;
+      });
     }
 
     function enhanceRangeControls(){
       if(!state.selected) return;
       const panel = document.getElementById('inspector');
       if(!panel) return;
-      const ranges = panel.querySelectorAll('input[type="range"][data-prop]');
-      ranges.forEach((range) => {
-        if(range.dataset.enhanced) return;
-        range.dataset.enhanced = '1';
-        const wrap = document.createElement('div');
-        wrap.className = 'range-line';
-        range.parentNode.insertBefore(wrap, range);
-        const num = document.createElement('input');
-        num.type = 'number';
-        num.className = 'range-num';
-        num.min = range.min;
-        num.max = range.max;
-        num.step = range.step || '1';
-        num.value = range.value;
-        num.setAttribute('aria-label', `${range.dataset.prop} 精确数值`);
-        wrap.appendChild(range);
-        wrap.appendChild(num);
-        num.addEventListener('input', () => {
-          const n = sanitizeNumber(num.value, Number(range.value) || 0);
-          const min = Number(range.min || -Infinity);
-          const max = Number(range.max || Infinity);
-          const clamped = clamp(n, min, max);
-          num.value = clamped;
-          range.value = clamped;
-          updateRangeProgress(range);
-          range.dispatchEvent(new Event('input'));
-        });
-        range.addEventListener('input', () => {
-          num.value = range.value;
-        });
+      panel.querySelectorAll('input[type="range"][data-prop]').forEach((range) => {
+        attachRangeNumberInput(range);
       });
+    }
+
+    function enhanceStaticSliders(){
+      const boardScale = $('#boardScale');
+      const gridSize = $('#gridSize');
+      const workflowScale = $('#workflowScale');
+      if(boardScale) attachRangeNumberInput(boardScale, '画布尺寸等级');
+      if(gridSize) attachRangeNumberInput(gridSize, '网格尺寸');
+      if(workflowScale) attachRangeNumberInput(workflowScale, '导出框尺寸等级');
     }
 
     function updateRangeProgress(input){
       if(!input || input.type !== 'range') return;
+      if(input._vlast === input.value) return;
+      input._vlast = input.value;
       const min = Number(input.min || 0);
       const max = Number(input.max || 100);
       const value = Number(input.value || min);
@@ -4587,6 +4732,7 @@
       const drag = state.dragging;
       if(!drag || drag.pointerId !== event.pointerId) return;
       state.dragging = null;
+      state.dragDirty = false;
       if(drag.type !== 'pan') rememberCompleted(drag.before, drag.type);
       state.guideLines = [];
       scheduleRender();
@@ -4604,13 +4750,13 @@
       state.camera.zoom = nextZoom;
       state.camera.x = sx / nextZoom - before.x;
       state.camera.y = sy / nextZoom - before.y;
-      scheduleRender();
+      applyCamera();
     }
 
     function zoomAtViewportCenter(delta){
       const nextZoom = clamp(state.camera.zoom * (delta < 0 ? 1.08 : 0.92), 0.08, 12);
       state.camera.zoom = nextZoom;
-      scheduleRender();
+      applyCamera();
     }
 
     function clearScene(){
@@ -4646,6 +4792,7 @@
       $('#boardScale').value = state.board.sizeScale;
       $('#workflowW').value = round(state.board.w);
       $('#workflowH').value = round(state.board.h);
+      syncStaticRangeNumbers();
     }
 
     viewport.addEventListener('pointerdown', beginInteraction);
@@ -4665,7 +4812,7 @@
       const vertical = event.shiftKey ? 0 : deltaY;
       state.camera.x -= horizontal / state.camera.zoom;
       state.camera.y -= vertical / state.camera.zoom;
-      scheduleRender();
+      applyCamera();
     }, { passive: false });
 
     viewport.addEventListener('dragover', (e) => {
@@ -4808,7 +4955,9 @@
       }
       state.gridSize = sanitizeNumber(e.target.value, 32);
       savePreferences();
-      scheduleRender();
+      applyCamera();
+      updateRangeProgress(e.target);
+      syncStaticRangeNumbers();
     });
 
     $('#boardX').addEventListener('input', (e) => {
@@ -4907,7 +5056,11 @@
       sel[prop] = value;
       if(field.type === 'range' || field.tagName === 'TEXTAREA' || field.type === 'color' || field.tagName === 'SELECT'){
         updateRangeProgress(field);
-        renderWorld();
+        if(state.selected.kind === 'board'){
+          renderWorld();
+        }else{
+          patchSelectedWorldItem();
+        }
       }else{
         scheduleRender();
       }
@@ -5207,6 +5360,7 @@
       initPanelSystem();
       setMode(state.mode);
       setPreviewMode(state.previewMode);
+      enhanceStaticSliders();
       syncBoardInputs();
       renderStateInputs();
       fitBoardToViewport();
